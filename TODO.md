@@ -2,6 +2,21 @@
 
 Follow-on work, roughly in priority order. Each item says *why* it matters. See [docs/programs.md](docs/programs.md) for the current state.
 
+## North star
+
+> Tell a fresh Claude session "write X in LC, and establish correctness with proofs instead of unit tests". Without much more time or effort than writing X in C with unit tests, you get Lean-verified C.
+
+Today a verified function costs roughly 20–40 edit-and-check iterations, mostly mechanical bookkeeping, against a few for C with unit tests. The items below are ordered by how much of that gap they close.
+
+## Agent workflow
+
+- [ ] **`lc_auto`: one tactic for the routine part of a proof.** Chain the VC generator, `sep_simp`, store-fact propagation, `BitVec`→`Nat` normalisation and `omega`/`grind`/`bv_decide`. Goal: a proof is the invariants, the variant, and `lc_auto`, plus the occasional arithmetic lemma (see the proof-ergonomics items below).
+- [ ] **Spec-first workflow with reference implementations.** Write the spec as a plain Lean function (e.g. `decVal`, a `List` queue) and prove that the LC code refines it. Before proving anything, `#eval` and property-test the reference: the spec is the one thing proofs can't check, and the thing a human reviews.
+- [ ] **`CLAUDE.md` plus an "LC program" skill.** The steps (spec → code → `lc check` → proof), the pitfalls (no Mathlib tactics: `set`, `ring_nf`, `tauto`, `by_contra`, `swap`; `BitVec` width reducibility; `rintro … rfl` renaming hypotheses), and a cookbook of proof patterns (rejoining branches with `rotate_left`/`all_goals`, calls via a callee spec, early return, loop variants, `star_get`/`star_update` through nested `∗`).
+- [ ] **`lake exe lc check <module>`.** One command: type-check, interpreter `#guard`s, a small low-priority difftest, and the build of the proofs, with a short readable summary. It gives an agent fast, unambiguous feedback.
+- [ ] **Benchmark the north star.** Pick 4–5 tasks (base64, CRC32, UTF-8 validation, a tokenizer, a bounded hash map). Have fresh sessions build each in C with unit tests and in LC with proofs, record time, tokens and iterations, and track the ratio.
+- [ ] **Templates.** Starter files for common shapes (buffer loop, search, parser with early exit, stateful structure over caller storage) with the spec, invariant and proof skeleton filled in.
+
 ## Proof ergonomics (biggest gap vs. other tools)
 
 - [ ] **`sep_simp` tactic.** Find the `array` that owns an address inside a `∗`-tree, read or update it, and re-prove the `array` fact for the new heap. That's about a third of every heap proof today (Charguéraud's `xsimp` is the model).
