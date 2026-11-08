@@ -49,4 +49,5 @@ nice -n 19 lake exe lc ringtest 200 1
 - `Tools/Main.lean`: the `lc` executable (C emission, differential and model-based testing).
 - `generated/lc_examples.{h,c}`: the C printed for every example.
 - `docs/`: topic guides (above), plus the original [landscape survey](docs/landscape.md), [design decisions](docs/design.md) and [learning assignments](docs/assignments.md).
+- `TODO.md`: follow-on work, prioritised.
 - `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`, named by topic. Run with `lake env lean exercises/core/Semantics.lean`.
