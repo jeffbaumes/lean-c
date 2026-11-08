@@ -21,6 +21,8 @@ namespace LC
 abbrev TyEnv := Ident → Option Ty
 
 def Expr.typeOf (Γ : TyEnv) : Expr → Option Ty
+  -- Pointer literals would forge addresses: only parameters can hold pointers.
+  | .lit (.ptr _ _) => none
   | .lit v => some v.ty
   | .var x => Γ x
   | .unop op e => do
@@ -37,14 +39,14 @@ def Expr.typeOf (Γ : TyEnv) : Expr → Option Ty
     | .add, .int t | .sub, .int t | .mul, .int t | .div, .int t | .mod, .int t
     | .band, .int t | .bor, .int t | .bxor, .int t => some (.int t)
     | .shl, .int t | .shr, .int t => if t.signed then none else some (.int t)
-    | .eq, _ | .ne, _ => some .bool
+    | .eq, .int _ | .ne, .int _ | .eq, .bool | .ne, .bool => some .bool
     | .lt, .int _ | .le, .int _ => some .bool
     | .land, .bool | .lor, .bool => some .bool
     | _, _ => none
   | .cast t e => do
     match ← e.typeOf Γ with
     | .int _ => some (.int t)
-    | .bool => none
+    | _ => none
 
 def Stmt.typeCheck (Γ : TyEnv) : Stmt → Bool
   | .skip => true
@@ -52,6 +54,14 @@ def Stmt.typeCheck (Γ : TyEnv) : Stmt → Bool
   | .seq s₁ s₂ => s₁.typeCheck Γ && s₂.typeCheck Γ
   | .ite c s₁ s₂ => c.typeOf Γ == some .bool && s₁.typeCheck Γ && s₂.typeCheck Γ
   | .while c b => c.typeOf Γ == some .bool && b.typeCheck Γ
+  | .load x p i =>
+    match p.typeOf Γ with
+    | some (.ptr t) => i.typeOf Γ == some (.int .u32) && Γ x == some (.int t)
+    | _ => false
+  | .store p i e =>
+    match p.typeOf Γ with
+    | some (.ptr t) => i.typeOf Γ == some (.int .u32) && e.typeOf Γ == some (.int t)
+    | _ => false
 
 def Fn.tyEnv (f : Fn) : TyEnv := fun x => (f.params ++ f.locals).lookup x
 

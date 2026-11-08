@@ -20,8 +20,8 @@ symbolically. Try `simp [Stmt.block]` and watch it close the goal. Then break it
 postcondition to something false and read what `simp` leaves you. -/
 example (x y z : Nat) :
     wp (.block ["t" ::= v "a", "a" ::= v "b", "b" ::= v "t"])
-      (fun σ => σ.get "a" = some (nu32 y) ∧ σ.get "b" = some (nu32 x))
-      [("a", nu32 x), ("b", nu32 y), ("t", nu32 z)] := by
+      (fun σ => σ.st.get "a" = some (nu32 y) ∧ σ.st.get "b" = some (nu32 x))
+      ⟨[("a", nu32 x), ("b", nu32 y), ("t", nu32 z)], []⟩ := by
   sorry
 
 /-! ## M2.3 (🔧 15 min): a function with a branch
@@ -35,13 +35,13 @@ def maxFn : Fn where
   ret := .int .u32; result := v "r"
 
 theorem maxFn_correct (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
-    maxFn.Returns [.u32 a, .u32 b] (.u32 ((max a b : Nat) : Int)) := by
+    maxFn.Returns [.u32 a, .u32 b] [] (.u32 ((max a b : Nat) : Int)) [] := by
   sorry
 
 /-! ## M2.4 (🔧 15 min): total correctness says no to `while (true) {}`
 First show there is no execution at all. Hint: `generalize hs : Stmt.while … = s at h`,
 then `induction h`; most cases are contradicted by `hs`. -/
-theorem spin_no_exec (σ σ' : Store) : ¬ Exec σ (.while (.lit (.bool true)) .skip) σ' := by
+theorem spin_no_exec (σ σ' : State) : ¬ Exec σ (.while (.lit (.bool true)) .skip) σ' := by
   sorry
 
 theorem spin_no_triple :

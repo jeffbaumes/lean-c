@@ -63,7 +63,9 @@ theorem Expr.typeOf_sound {Γ : TyEnv} {σ : Store} (hσ : StoreTyped Γ σ) :
     ∀ (e : Expr) {τ : Ty} {v : Val}, e.typeOf Γ = some τ → e.eval σ = some v → v.ty = τ := by
   intro e
   induction e with
-  | lit val => intro τ v ht he; simp [Expr.typeOf, Expr.eval] at ht he; subst he; exact ht
+  | lit val =>
+    intro τ v ht he; simp [Expr.eval] at he; subst he
+    cases val <;> simp_all [Expr.typeOf, Val.ty]
   | var x => intro τ v ht he; simp [Expr.typeOf, Expr.eval] at ht he; have := hσ x v he; simp_all
   | unop op e ih =>
     intro τ v ht he
@@ -99,13 +101,14 @@ theorem Expr.typeOf_sound {Γ : TyEnv} {σ : Store} (hσ : StoreTyped Γ σ) :
       have h1 := iha hta hva
       have h2 := ihb htb hvb
       cases va <;> cases vb <;> simp only [Val.ty] at h1 h2 <;> subst h1 <;>
-        simp only [Ty.int.injEq, reduceCtorEq] at h2
+        (try simp only [Ty.int.injEq, Ty.ptr.injEq, reduceCtorEq] at h2)
     -- int ⊕ int: the result type is what `intBinOp_ty` computes; bool ⊕ bool: only ==/!=
     all_goals first
       | (subst h2; rw [evalBinOp_int] at he; have hv := intBinOp_ty he
          simp only at hv ht; (repeat' split at ht) <;> simp_all)
       | (simp [evalBinOp] at he; (repeat' split at he) <;> simp_all <;> (cases he; simp_all [Val.ty]))
       | simp [evalBinOp] at he
+      | simp at ht
 
 theorem StoreTyped.set {Γ : TyEnv} {σ : Store} {x : Ident} {v : Val}
     (hσ : StoreTyped Γ σ) (hx : Γ x = some v.ty) : StoreTyped Γ (σ.set x v) := by
@@ -115,15 +118,16 @@ theorem StoreTyped.set {Γ : TyEnv} {σ : Store} {x : Ident} {v : Val}
   · rw [Store.get_set_other _ _ _ _ h] at hy; exact hσ y w hy
 
 /-- Executing a well-typed statement keeps every variable at its declared type. -/
-theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : Store} {s : Stmt}
-    (h : Exec σ s σ') (hwt : s.typeCheck Γ = true) (hσ : StoreTyped Γ σ) : StoreTyped Γ σ' := by
+theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : State} {s : Stmt}
+    (h : Exec σ s σ') (hwt : s.typeCheck Γ = true) (hσ : StoreTyped Γ σ.st) :
+    StoreTyped Γ σ'.st := by
   induction h with
   | skip => exact hσ
-  | @assign σ x e v hv =>
+  | @assign st m x e v hv =>
     simp only [Stmt.typeCheck, Bool.and_eq_true, Option.isSome_iff_exists, beq_iff_eq] at hwt
     obtain ⟨⟨τ, hτ⟩, heq⟩ := hwt
     have := Expr.typeOf_sound hσ e (heq ▸ hτ) hv
-    exact hσ.set (by rw [hτ, this])
+    exact StoreTyped.set hσ (by rw [hτ, this])
   | seq _ _ ih₁ ih₂ =>
     simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt
     exact ih₂ hwt.2 (ih₁ hwt.1 hσ)
@@ -136,5 +140,23 @@ theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : Store} {s : Stmt}
     simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt
     exact ihw hw (ihb hwt.2 hσ)
   | whileFalse _ => exact hσ
+  | @load st m x p i t b k v ha _ hty =>
+    -- the dynamic check `v.ty = .int t` plus the static `Γ x = ptr's element type`
+    simp only [Stmt.typeCheck] at hwt
+    split at hwt
+    · next t' hp =>
+      simp only [Bool.and_eq_true, beq_iff_eq] at hwt
+      have ht' : t' = t := by
+        simp only [Expr.evalAddr] at ha
+        split at ha
+        · next b' off k' hpv hiv =>
+          cases ha
+          have := Expr.typeOf_sound hσ p hp hpv
+          simp [Val.ty] at this; exact this.symm
+        · simp at ha
+      subst ht'
+      exact StoreTyped.set hσ (by rw [hwt.2, hty])
+    · simp at hwt
+  | store => exact hσ
 
 end LC

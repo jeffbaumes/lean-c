@@ -37,7 +37,7 @@ def isqrtBad : Fn where
 #guard isqrtBad.call [.u32 1000] = .ok (.u32 31)   -- fine on small inputs, which is why tests miss it
 
 /-! ## M1.3 `while false` is `skip` -/
-theorem while_false_iff (σ σ' : Store) (s : Stmt) :
+theorem while_false_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.while (.lit (.bool false)) s) σ' ↔ σ' = σ := by
   constructor
   · intro h; cases h with
@@ -46,14 +46,14 @@ theorem while_false_iff (σ σ' : Store) (s : Stmt) :
   · rintro rfl; exact .whileFalse (by simp [Expr.eval])
 
 /-! ## M1.4 `skip ;; s` -/
-theorem skip_seq_iff (σ σ' : Store) (s : Stmt) :
+theorem skip_seq_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.seq .skip s) σ' ↔ Exec σ s σ' := by
   constructor
   · intro h; cases h with | seq h₁ h₂ => cases h₁; exact h₂
   · intro h; exact .seq .skip h
 
 /-! ## M1.5 fuel monotonicity -/
-theorem run_mono {n m : Nat} {σ σ' : Store} {s : Stmt} (hle : n ≤ m) :
+theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
     run n σ s = .ok σ' → run m σ s = .ok σ' := by
   induction n generalizing m σ σ' s with
   | zero => simp [run]
@@ -63,6 +63,8 @@ theorem run_mono {n m : Nat} {σ σ' : Store} {s : Stmt} (hle : n ≤ m) :
     cases s with
     | skip => simp [run]
     | assign x e => simp [run]
+    | load x p i => simp [run]
+    | store p i e => simp [run]
     | seq s₁ s₂ =>
       simp only [run]
       split
@@ -84,7 +86,7 @@ theorem run_mono {n m : Nat} {σ σ' : Store} {s : Stmt} (hle : n ≤ m) :
       · simp
 
 /-! ## M1.6 completeness -/
-theorem run_complete {σ σ' : Store} {s : Stmt} (h : Exec σ s σ') :
+theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
     ∃ n, run n σ s = .ok σ' := by
   induction h with
   | skip => exact ⟨1, rfl⟩
@@ -104,6 +106,8 @@ theorem run_complete {σ σ' : Store} {s : Stmt} (h : Exec σ s σ') :
     simp only [run, hc, run_mono (m := max n₁ n₂) (by omega) h₁]
     exact run_mono (m := max n₁ n₂) (by omega) h₂
   | whileFalse hc => exact ⟨1, by simp [run, hc]⟩
+  | load ha hv hty => exact ⟨1, by simp [run, ha, hv, hty]⟩
+  | store ha he hty hw => exact ⟨1, by simp [run, ha, he, hty, hw]⟩
 
 /-! ## M1.7
 Determinism is used in the `seq` and `while` cases: the interpreter ran `s₁` to `σ₁`

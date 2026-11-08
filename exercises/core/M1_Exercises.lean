@@ -41,26 +41,26 @@ def isqrtBad : Fn where
 
 /-! ## M1.3 (🔧 10 min): a program equivalence by inversion
 Hint: `constructor`; in one direction `cases h`, and look at what each rule demands. -/
-theorem while_false_iff (σ σ' : Store) (s : Stmt) :
+theorem while_false_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.while (.lit (.bool false)) s) σ' ↔ σ' = σ := by
   sorry
 
 /-! ## M1.4 (🔧 5 min) -/
-theorem skip_seq_iff (σ σ' : Store) (s : Stmt) :
+theorem skip_seq_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.seq .skip s) σ' ↔ Exec σ s σ' := by
   sorry
 
 /-! ## M1.5 (🔧 15 min): more fuel never hurts
 Hint: induction on `n` generalizing `m σ σ' s`. In the `succ` case, write `m` as `k + 1`,
 then follow the structure of `run_sound` in LC/Interp.lean. -/
-theorem run_mono {n m : Nat} {σ σ' : Store} {s : Stmt} (hle : n ≤ m) :
+theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
     run n σ s = .ok σ' → run m σ s = .ok σ' := by
   sorry
 
 /-! ## M1.6 (🔧 15 min, stretch): the interpreter is complete
 Every terminating execution is found with enough fuel. Hint: induction on `h`; for
 `seq` and `whileTrue`, use `max n₁ n₂ + 1` fuel and `run_mono` (pass `(m := …)` explicitly). -/
-theorem run_complete {σ σ' : Store} {s : Stmt} (h : Exec σ s σ') :
+theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
     ∃ n, run n σ s = .ok σ' := by
   sorry
 

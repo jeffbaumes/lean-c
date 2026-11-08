@@ -28,12 +28,12 @@ deriving DecidableEq, Repr, Inhabited
 
 /-- Every recursive call consumes one unit of fuel, so `run` is structurally
 recursive and Lean accepts it without a termination proof. -/
-def run : Nat → Store → Stmt → Result Store
+def run : Nat → State → Stmt → Result State
   | 0, _, _ => .outOfFuel
   | _ + 1, σ, .skip => .ok σ
-  | _ + 1, σ, .assign x e =>
-    match e.eval σ with
-    | some v => .ok (σ.set x v)
+  | _ + 1, ⟨st, m⟩, .assign x e =>
+    match e.eval st with
+    | some v => .ok ⟨st.set x v, m⟩
     | none => .stuck
   | n + 1, σ, .seq s₁ s₂ =>
     match run n σ s₁ with
@@ -41,12 +41,12 @@ def run : Nat → Store → Stmt → Result Store
     | .stuck => .stuck
     | .outOfFuel => .outOfFuel
   | n + 1, σ, .ite c s₁ s₂ =>
-    match c.eval σ with
+    match c.eval σ.st with
     | some (.bool true) => run n σ s₁
     | some (.bool false) => run n σ s₂
     | _ => .stuck
   | n + 1, σ, .while c b =>
-    match c.eval σ with
+    match c.eval σ.st with
     | some (.bool true) =>
       match run n σ b with
       | .ok σ₁ => run n σ₁ (.while c b)
@@ -54,10 +54,26 @@ def run : Nat → Store → Stmt → Result Store
       | .outOfFuel => .outOfFuel
     | some (.bool false) => .ok σ
     | _ => .stuck
+  | _ + 1, ⟨st, m⟩, .load x p i =>
+    match Expr.evalAddr st p i with
+    | some (t, b, k) =>
+      match m.read b k with
+      | some v => if v.ty = .int t then .ok ⟨st.set x v, m⟩ else .stuck
+      | none => .stuck
+    | none => .stuck
+  | _ + 1, ⟨st, m⟩, .store p i e =>
+    match Expr.evalAddr st p i, e.eval st with
+    | some (t, b, k), some v =>
+      if v.ty = .int t then
+        match m.write b k v with
+        | some m' => .ok ⟨st, m'⟩
+        | none => .stuck
+      else .stuck
+    | _, _ => .stuck
 
 /-! ## Soundness of successful runs -/
 
-theorem run_sound {n : Nat} {σ σ' : Store} {s : Stmt} :
+theorem run_sound {n : Nat} {σ σ' : State} {s : Stmt} :
     run n σ s = .ok σ' → Exec σ s σ' := by
   induction n generalizing σ σ' s with
   | zero => simp [run]
@@ -65,6 +81,7 @@ theorem run_sound {n : Nat} {σ σ' : Store} {s : Stmt} :
     cases s with
     | skip => simp only [run, Result.ok.injEq]; rintro rfl; exact .skip
     | assign x e =>
+      obtain ⟨st, m⟩ := σ
       simp only [run]; split
       · next v hv => simp only [Result.ok.injEq]; rintro rfl; exact .assign hv
       · simp
@@ -87,6 +104,28 @@ theorem run_sound {n : Nat} {σ σ' : Store} {s : Stmt} :
         · simp
       · next hc => simp only [Result.ok.injEq]; rintro rfl; exact .whileFalse hc
       · simp
+    | load x p i =>
+      obtain ⟨st, m⟩ := σ
+      simp only [run]; split
+      · next t b k ha =>
+        split
+        · next v hv =>
+          split
+          · next hty => simp only [Result.ok.injEq]; rintro rfl; exact .load ha hv hty
+          · simp
+        · simp
+      · simp
+    | store p i e =>
+      obtain ⟨st, m⟩ := σ
+      simp only [run]; split
+      · next t b k v ha he =>
+        split
+        · next hty =>
+          split
+          · next m' hw => simp only [Result.ok.injEq]; rintro rfl; exact .store ha he hty hw
+          · simp
+        · simp
+      · simp
 
 /-! ## Determinism
 
@@ -95,7 +134,7 @@ expressions (design §2). Determinism is what makes "the interpreter got stuck"
 mean "*every* execution gets stuck". CompCert's analogue is
 `Clight.semantics_determinate`. -/
 
-theorem Exec.det {σ σ₁ σ₂ : Store} {s : Stmt} (h₁ : Exec σ s σ₁) (h₂ : Exec σ s σ₂) :
+theorem Exec.det {σ σ₁ σ₂ : State} {s : Stmt} (h₁ : Exec σ s σ₁) (h₂ : Exec σ s σ₂) :
     σ₁ = σ₂ := by
   induction h₁ generalizing σ₂ with
   | skip => cases h₂; rfl
@@ -119,10 +158,17 @@ theorem Exec.det {σ σ₁ σ₂ : Store} {s : Stmt} (h₁ : Exec σ s σ₁) (h
     cases h₂ with
     | whileTrue hc' _ _ => simp_all
     | whileFalse _ => rfl
+  | load ha hv _ =>
+    cases h₂ with
+    | load ha' hv' _ => simp_all
+  | store ha he _ hw =>
+    cases h₂ with
+    | store ha' he' _ hw' =>
+      rw [ha] at ha'; cases ha'; rw [he] at he'; cases he'; rw [hw] at hw'; cases hw'; rfl
 
 /-! ## Soundness of stuck runs -/
 
-theorem run_stuck_sound {n : Nat} {σ : Store} {s : Stmt} :
+theorem run_stuck_sound {n : Nat} {σ : State} {s : Stmt} :
     run n σ s = .stuck → ∀ σ', ¬ Exec σ s σ' := by
   induction n generalizing σ s with
   | zero => simp [run]
@@ -131,8 +177,8 @@ theorem run_stuck_sound {n : Nat} {σ : Store} {s : Stmt} :
     cases s with
     | skip => simp [run] at hrun
     | assign x e =>
-      simp only [run] at hrun; split at hrun <;> simp_all
-      cases hex; simp_all
+      cases hex with
+      | assign hv => simp [run, hv] at hrun
     | seq s₁ s₂ =>
       simp only [run] at hrun
       cases hex with
@@ -166,36 +212,59 @@ theorem run_stuck_sound {n : Nat} {σ : Store} {s : Stmt} :
         | whileFalse hc' => simp_all
       · simp at hrun
       · next hc₁ hc₂ => cases hex <;> simp_all
+    | load x p i =>
+      cases hex with
+      | load ha hv hty => simp [run, ha, hv, hty] at hrun
+    | store p i e =>
+      cases hex with
+      | store ha he hty hw => simp [run, ha, he, hty, hw] at hrun
 
 /-! ## Calling a function -/
 
-def Fn.call (f : Fn) (args : List Val) (fuel : Nat := 100000) : Result Val :=
+/-- Call `f` with arguments `args` and initial memory `m`. -/
+def Fn.callMem (f : Fn) (args : List Val) (m : Mem) (fuel : Nat := 100000) : Result (Val × Mem) :=
   match f.initStore args with
   | none => .stuck
-  | some σ₀ =>
-    match run fuel σ₀ f.body with
+  | some st₀ =>
+    match run fuel ⟨st₀, m⟩ f.body with
     | .ok σ₁ =>
-      match f.result.eval σ₁ with
-      | some v => if v.ty = f.ret then .ok v else .stuck
+      match f.result.eval σ₁.st with
+      | some v => if v.ty = f.ret then .ok (v, σ₁.mem) else .stuck
       | none => .stuck
     | .stuck => .stuck
     | .outOfFuel => .outOfFuel
 
-theorem Fn.call_sound {f : Fn} {args : List Val} {fuel : Nat} {v : Val} :
-    f.call args fuel = .ok v → f.Returns args v := by
-  unfold Fn.call
+theorem Fn.callMem_sound {f : Fn} {args : List Val} {m : Mem} {fuel : Nat} {v : Val} {m' : Mem} :
+    f.callMem args m fuel = .ok (v, m') → f.Returns args m v m' := by
+  unfold Fn.callMem
   split
   · simp
-  · next σ₀ h₀ =>
+  · next st₀ h₀ =>
     split
     · next σ₁ h₁ =>
       split
       · next v' hv =>
         split
-        · next hty => simp only [Result.ok.injEq]; rintro rfl; exact ⟨σ₀, σ₁, h₀, run_sound h₁, hv, hty⟩
+        · next hty =>
+          simp only [Result.ok.injEq, Prod.mk.injEq]; rintro ⟨rfl, rfl⟩
+          exact ⟨st₀, σ₁.st, h₀, run_sound h₁, hv, hty⟩
         · simp
       · simp
     · simp
     · simp
+
+/-- Call a function that uses no memory (all M1/M2 examples). -/
+def Fn.call (f : Fn) (args : List Val) (fuel : Nat := 100000) : Result Val :=
+  match f.callMem args [] fuel with
+  | .ok (v, _) => .ok v
+  | .stuck => .stuck
+  | .outOfFuel => .outOfFuel
+
+theorem Fn.call_sound {f : Fn} {args : List Val} {fuel : Nat} {v : Val} :
+    f.call args fuel = .ok v → ∃ m', f.Returns args [] v m' := by
+  unfold Fn.call; split
+  · next v' m' h => simp only [Result.ok.injEq]; rintro rfl; exact ⟨m', Fn.callMem_sound h⟩
+  · simp
+  · simp
 
 end LC

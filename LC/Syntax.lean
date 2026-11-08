@@ -48,10 +48,24 @@ def min (t : IntTy) : Int := if t.signed then -(2 ^ (t.bits - 1) : Int) else 0
 def max (t : IntTy) : Int := if t.signed then (2 ^ (t.bits - 1) : Int) - 1 else (2 ^ t.bits : Int) - 1
 end IntTy
 
-/-- LC types. Pointers, arrays and structs come in later milestones. -/
+/-- LC types. `ptr t` is a pointer into an array of `t` (C: `t *`). Structs come in M5. -/
 inductive Ty
   | int  (t : IntTy)
   | bool
+  | ptr  (t : IntTy)
+  | unit
+deriving DecidableEq, Repr, Inhabited
+
+/-! ## Pointers (Milestone 3)
+
+A pointer is a **block** and an **offset** (design §3; CompCert's and Low\*'s
+memory models). A block is one array object, such as a buffer the caller passed in.
+Offsets count *elements*, not bytes, because each block holds cells of one type
+("typed-cell blocks"). Pointer↔integer casts don't exist, so a pointer can never
+be forged and C's provenance rules (ISO TS 6010) are respected by construction. -/
+structure Ptr where
+  blk : Nat
+  off : Nat
 deriving DecidableEq, Repr, Inhabited
 
 /-! ## Values -/
@@ -64,6 +78,8 @@ and Certora's Lean Clight uses the same representation. -/
 inductive Val
   | int  (t : IntTy) (bv : BitVec t.bits)
   | bool (b : Bool)
+  | ptr  (t : IntTy) (p : Ptr)
+  | unit
 deriving DecidableEq, Inhabited
 
 /-- Print values the way you'd write them: `55u64`, `-3i32`, `true`. -/
@@ -72,6 +88,8 @@ def Val.toString : Val → String
     let z : Int := if t.signed then bv.toInt else bv.toNat
     s!"{z}{if t.signed then "i" else "u"}{t.bits}"
   | .bool b => if b then "true" else "false"
+  | .ptr _ p => s!"&b{p.blk}[{p.off}]"
+  | .unit => "()"
 
 instance : ToString Val := ⟨Val.toString⟩
 instance : Repr Val := ⟨fun v _ => v.toString⟩
@@ -83,13 +101,15 @@ def Val.ofInt (t : IntTy) (z : Int) : Val := .int t (BitVec.ofInt t.bits z)
 def Val.ty : Val → Ty
   | .int t _ => .int t
   | .bool _  => .bool
+  | .ptr t _ => .ptr t
+  | .unit    => .unit
 
 /-- The *mathematical* integer an integer value denotes: two's complement for
 signed types, plain binary for unsigned. C's arithmetic rules are stated in terms
 of this number (C11 §6.2.6.2, §6.3.1.3). -/
 def Val.toInt? : Val → Option Int
   | .int t bv => some (if t.signed then bv.toInt else bv.toNat)
-  | .bool _   => none
+  | _         => none
 
 /-! ## Expressions
 
@@ -130,19 +150,30 @@ deriving DecidableEq, Repr, Inhabited
 
 /-! ## Statements -/
 
+/-! ## Statements
+
+Memory is accessed only by statements, never inside expressions, so expressions
+stay pure (Clight makes the same choice). Indexing is `p[i]` with a `u32` index,
+which is the Low\* `index`/`upd` style. There is no general pointer arithmetic yet. -/
+
 inductive Stmt
   | skip
   | assign (x : Ident) (e : Expr)
   | seq    (s₁ s₂ : Stmt)
   | ite    (c : Expr) (s₁ s₂ : Stmt)
   | while  (c : Expr) (body : Stmt)
+  /-- `x = p[i];` -/
+  | load   (x : Ident) (p : Expr) (i : Expr)
+  /-- `p[i] = e;` -/
+  | store  (p : Expr) (i : Expr) (e : Expr)
 deriving DecidableEq, Repr, Inhabited
 
 /-! ## Functions
 
-In Milestone 1 a function is: typed parameters, typed locals, a body, and a
-result expression evaluated after the body (one `return` at the end). Early
-`return` and `break` arrive in Milestone 3, along with a richer outcome type. -/
+A function is: typed parameters, typed locals, a body, and a result expression
+evaluated after the body (one `return` at the end). Early `return` and `break`
+need a richer outcome type. They were planned for M3 but are deferred to M5,
+since neither M3 target needs them. -/
 
 structure Fn where
   name   : Ident

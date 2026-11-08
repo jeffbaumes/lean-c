@@ -155,31 +155,80 @@ def Expr.eval (σ : Store) : Expr → Option Val
   | .binop op a b => do evalBinOp op (← a.eval σ) (← b.eval σ)
   | .cast t e => (e.eval σ).bind (evalCast t)
 
+/-! ## Memory (Milestone 3)
+
+A memory maps block ids to arrays of cells. The block layout (which blocks exist,
+and how long each is) never changes: LC has no allocation yet, so buffers come from
+the caller. Reading or writing outside a block, or in a block that doesn't exist,
+has no meaning, and the program is stuck (C11 §6.5.6¶8, J.2). -/
+
+abbrev Mem := List (Nat × List Val)
+
+def Mem.cells : Mem → Nat → Option (List Val)
+  | [], _ => none
+  | (b, cs) :: μ, b' => if b = b' then some cs else Mem.cells μ b'
+
+def Mem.setCells : Mem → Nat → List Val → Mem
+  | [], _, _ => []
+  | (b, cs) :: μ, b', cs' => if b = b' then (b, cs') :: μ else (b, cs) :: Mem.setCells μ b' cs'
+
+/-- Read cell `k` of block `b`, if it exists. -/
+def Mem.read (μ : Mem) (b k : Nat) : Option Val := (μ.cells b).bind (·[k]?)
+
+/-- Write cell `k` of block `b`. Fails (`none`) out of bounds. -/
+def Mem.write (μ : Mem) (b k : Nat) (v : Val) : Option Mem :=
+  match μ.cells b with
+  | some cs => if k < cs.length then some (μ.setCells b (cs.set k v)) else none
+  | none => none
+
+structure State where
+  st  : Store
+  mem : Mem
+deriving DecidableEq, Repr, Inhabited
+
+/-- Where `p[i]` points: pointer `p` must evaluate to `ptr t ⟨b, off⟩` and `i` to a `u32`.
+The cell is `(b, off + i)`. -/
+def Expr.evalAddr (st : Store) (p i : Expr) : Option (IntTy × Nat × Nat) :=
+  match p.eval st, i.eval st with
+  | some (.ptr t ⟨b, off⟩), some (.int ⟨false, .w32⟩ k) => some (t, b, off + k.toNat)
+  | _, _ => none
+
 /-! ## Statement execution (big-step) -/
 
-/-- `Exec σ s σ'`: running `s` from store `σ` terminates normally in store `σ'`.
+/-- `Exec σ s σ'`: running `s` from state `σ` terminates normally in state `σ'`.
 There is deliberately no rule for diverging or stuck executions. -/
-inductive Exec : Store → Stmt → Store → Prop
+inductive Exec : State → Stmt → State → Prop
   | skip {σ} :
       Exec σ .skip σ
-  | assign {σ x e v} :
-      e.eval σ = some v →
-      Exec σ (.assign x e) (σ.set x v)
+  | assign {st m x e v} :
+      e.eval st = some v →
+      Exec ⟨st, m⟩ (.assign x e) ⟨st.set x v, m⟩
   | seq {σ σ₁ σ₂ s₁ s₂} :
       Exec σ s₁ σ₁ → Exec σ₁ s₂ σ₂ →
       Exec σ (.seq s₁ s₂) σ₂
   | iteTrue {σ σ' c s₁ s₂} :
-      c.eval σ = some (.bool true) → Exec σ s₁ σ' →
+      c.eval σ.st = some (.bool true) → Exec σ s₁ σ' →
       Exec σ (.ite c s₁ s₂) σ'
   | iteFalse {σ σ' c s₁ s₂} :
-      c.eval σ = some (.bool false) → Exec σ s₂ σ' →
+      c.eval σ.st = some (.bool false) → Exec σ s₂ σ' →
       Exec σ (.ite c s₁ s₂) σ'
   | whileTrue {σ σ₁ σ₂ c b} :
-      c.eval σ = some (.bool true) → Exec σ b σ₁ → Exec σ₁ (.while c b) σ₂ →
+      c.eval σ.st = some (.bool true) → Exec σ b σ₁ → Exec σ₁ (.while c b) σ₂ →
       Exec σ (.while c b) σ₂
   | whileFalse {σ c b} :
-      c.eval σ = some (.bool false) →
+      c.eval σ.st = some (.bool false) →
       Exec σ (.while c b) σ
+  /-- `x = p[i];` The cell must exist and hold a value of the pointer's element type. -/
+  | load {st m x p i t b k v} :
+      Expr.evalAddr st p i = some (t, b, k) →
+      m.read b k = some v → v.ty = .int t →
+      Exec ⟨st, m⟩ (.load x p i) ⟨st.set x v, m⟩
+  /-- `p[i] = e;` The cell must exist, and `e` must have the element type. -/
+  | store {st m m' p i e t b k v} :
+      Expr.evalAddr st p i = some (t, b, k) →
+      e.eval st = some v → v.ty = .int t →
+      m.write b k v = some m' →
+      Exec ⟨st, m⟩ (.store p i e) ⟨st, m'⟩
 
 /-! ## Functions -/
 
@@ -189,9 +238,10 @@ def Fn.initStore (f : Fn) (args : List Val) : Option Store :=
     some ((f.params.zip args).foldl (fun σ (p, v) => σ.set p.1 v) Store.empty)
   else none
 
-/-- `f.Returns args v`: calling `f` on `args` terminates without UB and returns `v`. -/
-def Fn.Returns (f : Fn) (args : List Val) (v : Val) : Prop :=
-  ∃ σ₀ σ₁, f.initStore args = some σ₀ ∧ Exec σ₀ f.body σ₁ ∧
-    f.result.eval σ₁ = some v ∧ v.ty = f.ret
+/-- `f.Returns args m v m'`: calling `f` on `args` with memory `m` terminates without
+UB, returns `v`, and leaves memory `m'`. -/
+def Fn.Returns (f : Fn) (args : List Val) (m : Mem) (v : Val) (m' : Mem) : Prop :=
+  ∃ st₀ st₁, f.initStore args = some st₀ ∧ Exec ⟨st₀, m⟩ f.body ⟨st₁, m'⟩ ∧
+    f.result.eval st₁ = some v ∧ v.ty = f.ret
 
 end LC

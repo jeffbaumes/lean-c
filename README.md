@@ -10,7 +10,7 @@ This is a learning project, built milestone by milestone with a walkthrough for 
 |---|---|---|
 | M1 | Syntax, big-step semantics, interpreter proved sound (ok *and* stuck), type checker | ✅ [walkthrough](docs/m1-walkthrough.md) |
 | M2 | Hoare logic (total correctness); `sum_to` proved correct for every `u32` input | ✅ [walkthrough](docs/m2-walkthrough.md) |
-| M3 | Heap: pointers, arrays, bounds, separation logic; array sum and `memcpy` | in progress |
+| M3 | Heap: pointers, arrays, bounds, separation logic with frame rule; array sum and `memcpy` proved | ✅ [walkthrough](docs/m3-walkthrough.md) |
 | M4 | C pretty-printer, differential testing against the interpreter under UBSan/ASan | planned |
 | M5 | A real target (ring buffer or parser), verified end to end | planned |
 | M6 | (stretch) Prove code generation correct against a Lean Clight semantics | planned |
@@ -29,7 +29,7 @@ Exercises: `lake env lean exercises/core/M1_Exercises.lean`
 
 ## Layout
 
-- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare}`
+- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare,Sep}`
 - `Examples/`: programs and proofs per milestone
 - `docs/`: [landscape survey](docs/phase1-landscape.md), [design decisions](docs/phase2-design.md), [assignments](docs/assignments.md), and milestone walkthroughs
 - `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`

@@ -46,7 +46,7 @@ def sumTo : Fn where
 /-- A theorem about the *semantics*, not the interpreter: `sum_to(10)` returns 55.
 `decide` makes the kernel evaluate the interpreter; `call_sound` turns that into
 an `Exec` derivation. No `native_decide`, so the compiler is not trusted. -/
-theorem sumTo_10 : sumTo.Returns [.u32 10] (.u64 55) :=
+theorem sumTo_10 : ∃ m', sumTo.Returns [.u32 10] [] (.u64 55) m' :=
   Fn.call_sound (fuel := 100) (by decide)
 
 /-! ## 2. Euclid's GCD -/
@@ -66,7 +66,7 @@ def gcd : Fn where
 #guard gcd.call [.u32 1071, .u32 462] = .ok (.u32 21)
 #guard gcd.call [.u32 0, .u32 0] = .ok (.u32 0)
 
-theorem gcd_1071_462 : gcd.Returns [.u32 1071, .u32 462] (.u32 21) :=
+theorem gcd_1071_462 : ∃ m', gcd.Returns [.u32 1071, .u32 462] [] (.u32 21) m' :=
   Fn.call_sound (fuel := 100) (by decide)
 
 /-! ## 3. Popcount: shifts and masks on unsigned values -/

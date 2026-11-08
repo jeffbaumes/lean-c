@@ -30,12 +30,12 @@ theorem tri_succ (k : Nat) : tri (k + 1) = tri k + (k + 1) := by
 /-- Loop invariant: the store holds `n`, a counter `i ≤ n`, and `s = tri i`.
 Stating the *whole* store exactly is heavy-handed but very predictable; M3's
 separation logic will let us say only what we need. -/
-def inv (n : Nat) : Assertion := fun σ =>
-  ∃ i, i ≤ n ∧ σ = [("n", nu32 n), ("i", nu32 i), ("s", nu64 (tri i))]
+def inv (n : Nat) (m : Mem) : Assertion := fun σ =>
+  ∃ i, i ≤ n ∧ σ = ⟨[("n", nu32 n), ("i", nu32 i), ("s", nu64 (tri i))], m⟩
 
 /-- Loop variant: `n - i` (iterations remaining). -/
-def var (n : Nat) : Store → Nat := fun σ =>
-  match σ.get "i" with
+def var (n : Nat) : State → Nat := fun σ =>
+  match σ.st.get "i" with
   | some (.int _ bv) => n - bv.toNat
   | _ => 0
 
@@ -48,17 +48,18 @@ The proof is one symbolic-execution pass:
    `init`, `cond` (the guard never has UB), `body` (preserve and decrease), and `exit`.
 4. Each goal is `simp` with the `LC/Logic/Eval.lean` lemmas, then a little arithmetic.
 -/
-theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) :
-    sumTo.Returns [.u32 n] (.u64 (tri n)) := by
-  suffices key : wp sumTo.body (fun σ => ∃ v, sumTo.result.eval σ = some v ∧
-      v.ty = sumTo.ret ∧ v = .u64 (tri n)) [("n", nu32 n)] by
-    obtain ⟨v, hv, rfl⟩ := Fn.returns_of_wp (f := sumTo) (args := [.u32 n])
-      (by simp [Fn.initStore, sumTo, Store.empty]; rfl) key
+theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
+    sumTo.Returns [.u32 n] m (.u64 (tri n)) m := by
+  suffices key : wp sumTo.body (fun σ => ∃ v, sumTo.result.eval σ.st = some v ∧
+      v.ty = sumTo.ret ∧ (v = .u64 (tri n) ∧ σ.mem = m)) ⟨[("n", nu32 n)], m⟩ by
+    obtain ⟨v, m', hv, rfl, rfl⟩ := Fn.returns_of_wp (f := sumTo) (args := [.u32 n])
+      (st₀ := [("n", nu32 n)]) (m := m)
+      (post := fun v m' => v = .u64 (tri n) ∧ m' = m) (by simp [Fn.initStore, sumTo, Store.empty]; rfl) key
     exact hv
   simp only [sumTo, Stmt.block, wp_seq, wp_assign]
   refine ⟨_, rfl, _, rfl, ?_⟩
   have hn32 : n % 2 ^ 32 = n := Nat.mod_eq_of_lt hn
-  refine wp_while (inv n) (var n) ?cond ?body ?exit _ ⟨0, by omega, ?init⟩
+  refine wp_while (inv n m) (var n) ?cond ?body ?exit _ ⟨0, by omega, ?init⟩
   case init => simp [tri]; constructor <;> rfl
   case cond =>
     rintro σ ⟨i, hi, rfl⟩
@@ -84,7 +85,7 @@ theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) :
     -- the guard was false, so i = n
     simp [nu32, intBinOp, BitVec.ult, hi32, hn32] at hc
     obtain rfl : i = n := by omega
-    simp; rfl
+    simp; constructor <;> rfl
 
 /-! ## Reading the spec carefully
 
@@ -98,20 +99,20 @@ theorem tri_lt (n : Nat) (hn : n < 2 ^ 32) : tri n < 2 ^ 64 := by
   have := Nat.div_le_self (n * (n + 1)) 2
   unfold tri; omega
 
-theorem sumTo_exact (n : Nat) (hn : n < 2 ^ 32) :
-    ∃ bv : BitVec 64, sumTo.Returns [.u32 n] (.int .u64 bv) ∧ bv.toNat = n * (n + 1) / 2 := by
-  refine ⟨BitVec.ofNat 64 (tri n), by simpa using sumTo_correct n hn, ?_⟩
+theorem sumTo_exact (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
+    ∃ bv : BitVec 64, sumTo.Returns [.u32 n] m (.int .u64 bv) m ∧ bv.toNat = n * (n + 1) / 2 := by
+  refine ⟨BitVec.ofNat 64 (tri n), by simpa using sumTo_correct n hn m, ?_⟩
   have := tri_lt n hn
   simp only [BitVec.toNat_ofNat, tri] at this ⊢
   exact Nat.mod_eq_of_lt this
 
 /-- And the payoff from M1's interpreter theorems: the interpreter can never report UB on `sum_to`. -/
-theorem sumTo_no_ub (n : Nat) (hn : n < 2 ^ 32) (fuel : Nat) :
-    ∀ σ₀, sumTo.initStore [.u32 n] = some σ₀ → run fuel σ₀ sumTo.body ≠ .stuck := by
-  intro σ₀ h₀
-  obtain ⟨σ₀', σ₁, h₀', hex, -⟩ := sumTo_correct n hn
+theorem sumTo_no_ub (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : Nat) :
+    ∀ st₀, sumTo.initStore [.u32 n] = some st₀ → run fuel ⟨st₀, m⟩ sumTo.body ≠ .stuck := by
+  intro st₀ h₀
+  obtain ⟨st₀', st₁, h₀', hex, -⟩ := sumTo_correct n hn m
   rw [h₀] at h₀'; cases h₀'
   intro hrun
-  exact run_stuck_sound hrun σ₁ hex
+  exact run_stuck_sound hrun _ hex
 
 end Examples.M2

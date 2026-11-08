@@ -6,3 +6,4 @@ import LC.TypingSound
 import LC.Notation
 import LC.Logic.Eval
 import LC.Logic.Hoare
+import LC.Logic.Sep

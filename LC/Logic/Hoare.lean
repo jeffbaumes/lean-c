@@ -38,9 +38,10 @@ Iris also take the semantic route.
 
 namespace LC
 
-/-- Assertions are predicates on stores (a *shallow* embedding of the assertion
-language, while programs stay deep). -/
-abbrev Assertion := Store → Prop
+/-- Assertions are predicates on states (a *shallow* embedding of the assertion
+language, while programs stay deep). Since M3 a state is a store plus a memory;
+`LC/Logic/Sep.lean` adds a separation logic for the memory part. -/
+abbrev Assertion := State → Prop
 
 /-- Total-correctness weakest precondition. -/
 def wp (s : Stmt) (Q : Assertion) : Assertion :=
@@ -56,7 +57,7 @@ scoped notation "⦃" P "⦄ " s " ⦃" Q "⦄" => Triple P s Q
 
 /-- A proved `wp` means the program has **no UB** from `σ`: the interpreter can
 never report `stuck`. (Uses `run_stuck_sound`, so determinism matters here too.) -/
-theorem wp_not_stuck {s : Stmt} {Q : Assertion} {σ : Store} (h : wp s Q σ) (n : Nat) :
+theorem wp_not_stuck {s : Stmt} {Q : Assertion} {σ : State} (h : wp s Q σ) (n : Nat) :
     run n σ s ≠ .stuck := by
   obtain ⟨σ', hex, _⟩ := h
   intro hrun
@@ -64,7 +65,7 @@ theorem wp_not_stuck {s : Stmt} {Q : Assertion} {σ : Store} (h : wp s Q σ) (n 
 
 /-! ## Structural rules -/
 
-theorem wp_mono {s : Stmt} {Q Q' : Assertion} {σ : Store}
+theorem wp_mono {s : Stmt} {Q Q' : Assertion} {σ : State}
     (himp : ∀ σ, Q σ → Q' σ) (h : wp s Q σ) : wp s Q' σ := by
   obtain ⟨σ', hex, hq⟩ := h
   exact ⟨σ', hex, himp _ hq⟩
@@ -76,28 +77,29 @@ theorem Triple.conseq {P P' Q Q' : Assertion} {s : Stmt}
 
 /-! ## Rules for each statement (all `@[simp]` except `while`) -/
 
-@[simp] theorem wp_skip {Q : Assertion} {σ : Store} : wp .skip Q σ ↔ Q σ := by
+@[simp] theorem wp_skip {Q : Assertion} {σ : State} : wp .skip Q σ ↔ Q σ := by
   constructor
   · rintro ⟨σ', h, hq⟩; cases h; exact hq
   · intro hq; exact ⟨σ, .skip, hq⟩
 
-@[simp] theorem wp_assign {x : Ident} {e : Expr} {Q : Assertion} {σ : Store} :
-    wp (.assign x e) Q σ ↔ ∃ v, e.eval σ = some v ∧ Q (σ.set x v) := by
+@[simp] theorem wp_assign {x : Ident} {e : Expr} {Q : Assertion} {σ : State} :
+    wp (.assign x e) Q σ ↔ ∃ v, e.eval σ.st = some v ∧ Q ⟨σ.st.set x v, σ.mem⟩ := by
+  obtain ⟨st, m⟩ := σ
   constructor
   · rintro ⟨σ', h, hq⟩; cases h with | assign hv => exact ⟨_, hv, hq⟩
   · rintro ⟨v, hv, hq⟩; exact ⟨_, .assign hv, hq⟩
 
-@[simp] theorem wp_seq {s₁ s₂ : Stmt} {Q : Assertion} {σ : Store} :
+@[simp] theorem wp_seq {s₁ s₂ : Stmt} {Q : Assertion} {σ : State} :
     wp (.seq s₁ s₂) Q σ ↔ wp s₁ (wp s₂ Q) σ := by
   constructor
   · rintro ⟨σ', h, hq⟩
     cases h with | seq h₁ h₂ => exact ⟨_, h₁, _, h₂, hq⟩
   · rintro ⟨σ₁, h₁, σ₂, h₂, hq⟩; exact ⟨σ₂, .seq h₁ h₂, hq⟩
 
-@[simp] theorem wp_ite {c : Expr} {s₁ s₂ : Stmt} {Q : Assertion} {σ : Store} :
+@[simp] theorem wp_ite {c : Expr} {s₁ s₂ : Stmt} {Q : Assertion} {σ : State} :
     wp (.ite c s₁ s₂) Q σ ↔
-      (c.eval σ = some (.bool true) ∧ wp s₁ Q σ) ∨
-      (c.eval σ = some (.bool false) ∧ wp s₂ Q σ) := by
+      (c.eval σ.st = some (.bool true) ∧ wp s₁ Q σ) ∨
+      (c.eval σ.st = some (.bool false) ∧ wp s₂ Q σ) := by
   constructor
   · rintro ⟨σ', h, hq⟩
     cases h with
@@ -118,11 +120,11 @@ theorem Triple.conseq {P P' Q Q' : Assertion} {s : Stmt}
 Without `μ` this would be the partial-correctness rule, which is sound only for
 "if it terminates". Exercise M1.2's infinite loop is exactly what `μ` rules out. -/
 theorem wp_while {c : Expr} {b : Stmt} {Q : Assertion}
-    (I : Assertion) (μ : Store → Nat)
-    (hcond : ∀ σ, I σ → ∃ bv, c.eval σ = some (.bool bv))
-    (hbody : ∀ σ, I σ → c.eval σ = some (.bool true) →
+    (I : Assertion) (μ : State → Nat)
+    (hcond : ∀ σ, I σ → ∃ bv, c.eval σ.st = some (.bool bv))
+    (hbody : ∀ σ, I σ → c.eval σ.st = some (.bool true) →
       wp b (fun σ' => I σ' ∧ μ σ' < μ σ) σ)
-    (hexit : ∀ σ, I σ → c.eval σ = some (.bool false) → Q σ) :
+    (hexit : ∀ σ, I σ → c.eval σ.st = some (.bool false) → Q σ) :
     ∀ σ, I σ → wp (.while c b) Q σ := by
   intro σ
   induction h : μ σ using Nat.strongRecOn generalizing σ with
@@ -148,14 +150,14 @@ theorem Triple.seq {P Q R : Assertion} {s₁ s₂ : Stmt}
   fun σ hp => wp_seq.mpr (wp_mono h₂ (h₁ σ hp))
 
 theorem Triple.assign {Q : Assertion} {x : Ident} {e : Expr} :
-    Triple (fun σ => ∃ v, e.eval σ = some v ∧ Q (σ.set x v)) (.assign x e) Q :=
+    Triple (fun σ => ∃ v, e.eval σ.st = some v ∧ Q ⟨σ.st.set x v, σ.mem⟩) (.assign x e) Q :=
   fun _ h => wp_assign.mpr h
 
-theorem Triple.while {I : Assertion} {c : Expr} {b : Stmt} (μ : Store → Nat)
-    (hcond : ∀ σ, I σ → ∃ bv, c.eval σ = some (.bool bv))
-    (hbody : ∀ n, Triple (fun σ => I σ ∧ c.eval σ = some (.bool true) ∧ μ σ = n) b
+theorem Triple.while {I : Assertion} {c : Expr} {b : Stmt} (μ : State → Nat)
+    (hcond : ∀ σ, I σ → ∃ bv, c.eval σ.st = some (.bool bv))
+    (hbody : ∀ n, Triple (fun σ => I σ ∧ c.eval σ.st = some (.bool true) ∧ μ σ = n) b
                          (fun σ => I σ ∧ μ σ < n)) :
-    Triple I (.while c b) (fun σ => I σ ∧ c.eval σ = some (.bool false)) :=
+    Triple I (.while c b) (fun σ => I σ ∧ c.eval σ.st = some (.bool false)) :=
   wp_while I μ hcond (fun σ hI hc => hbody (μ σ) σ ⟨hI, hc, rfl⟩) (fun _ hI hc => ⟨hI, hc⟩)
 
 /-! ## Functions -/
@@ -163,11 +165,13 @@ theorem Triple.while {I : Assertion} {c : Expr} {b : Stmt} (μ : Store → Nat)
 /-- To prove a function returns `v` satisfying `post`, it suffices to prove the
 `wp` of its body from the initial store, with the result evaluation as the
 postcondition. -/
-theorem Fn.returns_of_wp {f : Fn} {args : List Val} {σ₀ : Store} {post : Val → Prop}
-    (hinit : f.initStore args = some σ₀)
-    (hwp : wp f.body (fun σ => ∃ v, f.result.eval σ = some v ∧ v.ty = f.ret ∧ post v) σ₀) :
-    ∃ v, f.Returns args v ∧ post v := by
-  obtain ⟨σ₁, hex, v, hv, hty, hpost⟩ := hwp
-  exact ⟨v, ⟨σ₀, σ₁, hinit, hex, hv, hty⟩, hpost⟩
+theorem Fn.returns_of_wp {f : Fn} {args : List Val} {st₀ : Store} {m : Mem}
+    {post : Val → Mem → Prop}
+    (hinit : f.initStore args = some st₀)
+    (hwp : wp f.body (fun σ => ∃ v, f.result.eval σ.st = some v ∧ v.ty = f.ret ∧ post v σ.mem)
+      ⟨st₀, m⟩) :
+    ∃ v m', f.Returns args m v m' ∧ post v m' := by
+  obtain ⟨⟨st₁, m₁⟩, hex, v, hv, hty, hpost⟩ := hwp
+  exact ⟨v, m₁, ⟨st₀, st₁, hinit, hex, hv, hty⟩, hpost⟩
 
 end LC
