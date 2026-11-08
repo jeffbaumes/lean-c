@@ -1,0 +1,9 @@
+name = "lean-c"
+version = "0.1.0"
+defaultTargets = ["LC", "Examples"]
+
+[[lean_lib]]
+name = "LC"
+
+[[lean_lib]]
+name = "Examples"

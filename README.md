@@ -1,0 +1,35 @@
+# lean-c
+
+A small, C-like imperative language (**LC**) deeply embedded in Lean 4, with a formal semantics, a program logic, and (eventually) a code generator that prints readable C99/C11. It's modelled on Low\*/KaRaMeL from the F\* ecosystem. The shipped artifact will be plain C; Lean is the proof layer only.
+
+This is a learning project, built milestone by milestone with a walkthrough for each.
+
+## Status
+
+| Milestone | What | State |
+|---|---|---|
+| M1 | Syntax, big-step semantics, interpreter proved sound (ok *and* stuck), type checker | ✅ [walkthrough](docs/m1-walkthrough.md) |
+| M2 | Hoare logic (total correctness); `sum_to` proved correct for every `u32` input | ✅ [walkthrough](docs/m2-walkthrough.md) |
+| M3 | Heap: pointers, arrays, bounds, separation logic; array sum and `memcpy` | in progress |
+| M4 | C pretty-printer, differential testing against the interpreter under UBSan/ASan | planned |
+| M5 | A real target (ring buffer or parser), verified end to end | planned |
+| M6 | (stretch) Prove code generation correct against a Lean Clight semantics | planned |
+
+No `sorry`, no `native_decide`.
+
+## Build
+
+Requires [elan](https://github.com/leanprover/elan). The toolchain is pinned in `lean-toolchain` (Lean v4.35.0). There are no dependencies.
+
+```bash
+lake build
+```
+
+Exercises: `lake env lean exercises/core/M1_Exercises.lean`
+
+## Layout
+
+- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare}`
+- `Examples/`: programs and proofs per milestone
+- `docs/`: [landscape survey](docs/phase1-landscape.md), [design decisions](docs/phase2-design.md), [assignments](docs/assignments.md), and milestone walkthroughs
+- `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`
