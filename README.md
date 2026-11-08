@@ -11,7 +11,7 @@ This is a learning project, built milestone by milestone with a walkthrough for 
 | M1 | Syntax, big-step semantics, interpreter proved sound (ok *and* stuck), type checker | ✅ [walkthrough](docs/m1-walkthrough.md) |
 | M2 | Hoare logic (total correctness); `sum_to` proved correct for every `u32` input | ✅ [walkthrough](docs/m2-walkthrough.md) |
 | M3 | Heap: pointers, arrays, bounds, separation logic with frame rule; array sum and `memcpy` proved | ✅ [walkthrough](docs/m3-walkthrough.md) |
-| M4 | C pretty-printer, differential testing against the interpreter under UBSan/ASan | planned |
+| M4 | C printer (promotion-safe, freestanding C11); differential testing against the interpreter under UBSan/ASan and -O2 | ✅ [walkthrough](docs/m4-walkthrough.md) |
 | M5 | A real target (ring buffer or parser), verified end to end | planned |
 | M6 | (stretch) Prove code generation correct against a Lean Clight semantics | planned |
 
@@ -27,9 +27,18 @@ lake build
 
 Exercises: `lake env lean exercises/core/M1_Exercises.lean`
 
+Emit C and run the differential tester (needs a system C compiler; override with `LC_CC`):
+
+```bash
+lake exe lc emit generated/examples.c
+lake exe lc difftest 200 1
+```
+
 ## Layout
 
-- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare,Sep}`
+- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare,Sep}`, `Emit/C`
 - `Examples/`: programs and proofs per milestone
+- `Tools/Main.lean`: the `lc` executable (C emission, differential testing)
+- `generated/examples.c`: the C printed for every example
 - `docs/`: [landscape survey](docs/phase1-landscape.md), [design decisions](docs/phase2-design.md), [assignments](docs/assignments.md), and milestone walkthroughs
 - `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`

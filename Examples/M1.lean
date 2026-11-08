@@ -106,7 +106,7 @@ def sub32 : Fn where
 #eval sub32.call [.i32 (-2147483648), .i32 1]
 
 /-- …and the same program at `uint32_t` wraps, as C requires. -/
-def sub32u : Fn := { sub32 with params := [("a", .int .u32), ("b", .int .u32)], ret := .int .u32 }
+def sub32u : Fn := { sub32 with name := "sub32u", params := [("a", .int .u32), ("b", .int .u32)], ret := .int .u32 }
 #guard sub32u.call [.u32 0, .u32 1] = .ok (.u32 0xFFFFFFFF)
 
 /-! ## 5. Other UB the semantics catches -/
