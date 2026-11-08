@@ -170,7 +170,12 @@ def cPreamble : String :=
   "#include <stdint.h>\n#include <stdbool.h>\n#include <limits.h>\n\n" ++
   "_Static_assert(INT_MAX == 2147483647, \"LC's integer-promotion rules assume 32-bit int\");\n\n"
 
+/-- A translation unit. Function names must be distinct: C would reject (or, across files,
+silently merge) two definitions of one name. M4's tester hit exactly this with `sub32`. -/
 def cTranslationUnit (fs : List Fn) : Except String String := do
+  let names := fs.map (·.name)
+  unless names.eraseDups.length == names.length do
+    throw s!"duplicate function names in translation unit: {names}"
   let bodies ← fs.mapM Fn.toC
   return cPreamble ++ "\n".intercalate bodies
 

@@ -147,3 +147,50 @@ uint32_t fnv1a(uint8_t *p, uint32_t n) {
   }
   return h;
 }
+
+bool rb_push(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t x) {
+  uint32_t head;
+  uint32_t len;
+  uint32_t room;
+  uint32_t idx;
+  bool ok;
+  head = st[0u];
+  len = st[1u];
+  if (len < cap) {
+    room = (cap - head);
+    if (len < room) {
+      idx = (head + len);
+    } else {
+      idx = (len - room);
+    }
+    buf[idx] = x;
+    st[1u] = (len + 1u);
+    ok = true;
+  } else {
+    ok = false;
+  }
+  return ok;
+}
+
+bool rb_pop(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t *out) {
+  uint32_t head;
+  uint32_t len;
+  uint8_t c;
+  bool ok;
+  head = st[0u];
+  len = st[1u];
+  if (0u < len) {
+    c = buf[head];
+    out[0u] = c;
+    head = (head + 1u);
+    if (head == cap) {
+      head = 0u;
+    }
+    st[0u] = head;
+    st[1u] = (len - 1u);
+    ok = true;
+  } else {
+    ok = false;
+  }
+  return ok;
+}

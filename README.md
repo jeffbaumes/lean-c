@@ -12,7 +12,7 @@ This is a learning project, built milestone by milestone with a walkthrough for 
 | M2 | Hoare logic (total correctness); `sum_to` proved correct for every `u32` input | ✅ [walkthrough](docs/m2-walkthrough.md) |
 | M3 | Heap: pointers, arrays, bounds, separation logic with frame rule; array sum and `memcpy` proved | ✅ [walkthrough](docs/m3-walkthrough.md) |
 | M4 | C printer (promotion-safe, freestanding C11); differential testing against the interpreter under UBSan/ASan and -O2 | ✅ [walkthrough](docs/m4-walkthrough.md) |
-| M5 | A real target (ring buffer or parser), verified end to end | planned |
+| M5 | Ring buffer (push/pop) proved against a queue model; specs compose; C tested against the model | ✅ [walkthrough](docs/m5-walkthrough.md) |
 | M6 | (stretch) Prove code generation correct against a Lean Clight semantics | planned |
 
 No `sorry`, no `native_decide`.
@@ -32,6 +32,7 @@ Emit C and run the differential tester (needs a system C compiler; override with
 ```bash
 lake exe lc emit generated/examples.c
 lake exe lc difftest 200 1
+lake exe lc ringtest 200 1
 ```
 
 ## Layout

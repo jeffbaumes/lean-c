@@ -28,6 +28,8 @@ namespace LC
 @[simp] theorem Store.set_nil (x : Ident) (v : Val) : Store.set [] x v = [(x, v)] := rfl
 
 @[simp] theorem Expr.eval_lit (σ : Store) (val : Val) : (Expr.lit val).eval σ = some val := rfl
+@[simp] theorem Expr.eval_tt (σ : Store) : Expr.tt.eval σ = some (.bool true) := rfl
+@[simp] theorem Expr.eval_ff (σ : Store) : Expr.ff.eval σ = some (.bool false) := rfl
 @[simp] theorem Expr.eval_var (σ : Store) (x : Ident) : (Expr.var x).eval σ = σ.get x := rfl
 @[simp] theorem Expr.eval_v (σ : Store) (x : Ident) : (v x).eval σ = σ.get x := rfl
 @[simp] theorem Expr.eval_cast (σ : Store) (t : IntTy) (e : Expr) :

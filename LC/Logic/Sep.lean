@@ -126,6 +126,10 @@ theorem array_update {p : Ptr} {xs : List Val} {h : Heap} (ha : array p xs h)
       · rfl
     · simp [e2]
 
+theorem array_ne_none {p : Ptr} {xs : List Val} {h : Heap} (ha : array p xs h)
+    {k : Nat} (hk : k < xs.length) : h (p.blk, p.off + k) ≠ none := by
+  rw [array_get ha hk]; simp
+
 /-- Reading a cell owned by the left part of `P ∗ Q`. -/
 theorem star_get_left {P Q : HProp} {h : Heap} {a : Addr} {v : Val}
     (hpq : (P ∗ Q) h) (hp : ∀ h₁, P h₁ → h₁ a = some v) : h a = some v := by
@@ -145,6 +149,25 @@ theorem star_update_left {P P' Q : HProp} {h : Heap} {a : Addr} {v : Val}
   obtain ⟨hne, hP'⟩ := hp h₁ hP
   have h₂a : h₂ a = none := by rcases d a with e | e <;> simp_all
   exact ⟨_, h₂, Heap.disjoint_update_left d h₂a, Heap.update_union_left h₂a, hP', hQ⟩
+
+theorem star_update_right {P Q Q' : HProp} {h : Heap} {a : Addr} {v : Val}
+    (hpq : (P ∗ Q) h) (hq : ∀ h₂, Q h₂ → h₂ a ≠ none ∧ Q' (h₂.update a v)) :
+    (P ∗ Q') (h.update a v) :=
+  HProp.star_comm (star_update_left (HProp.star_comm hpq) hq)
+
+theorem star_mono {P P' Q Q' : HProp} {h : Heap} (hpq : (P ∗ Q) h)
+    (hp : ∀ h₁, P h₁ → P' h₁) (hq : ∀ h₂, Q h₂ → Q' h₂) : (P' ∗ Q') h := by
+  obtain ⟨h₁, h₂, d, rfl, h1, h2⟩ := hpq
+  exact ⟨h₁, h₂, d, rfl, hp _ h1, hq _ h2⟩
+
+/-- Two cells owned by different sides of `∗` are different addresses. -/
+theorem star_ne {P Q : HProp} {h : Heap} {a a' : Addr} (hpq : (P ∗ Q) h)
+    (ha : ∀ h₁, P h₁ → h₁ a ≠ none) (ha' : ∀ h₂, Q h₂ → h₂ a' ≠ none) : a ≠ a' := by
+  obtain ⟨h₁, h₂, d, rfl, h1, h2⟩ := hpq
+  rintro rfl
+  rcases d a with e | e
+  · exact ha _ h1 e
+  · exact ha' _ h2 e
 
 /-! ## Memory lemmas: how `Mem.read`/`Mem.write` look through `Mem.heap` -/
 

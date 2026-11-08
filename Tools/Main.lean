@@ -7,6 +7,7 @@ import Examples
 ```
 lake exe lc emit [out.c]               # print every example as one C translation unit
 lake exe lc difftest [cases] [seed] [fn]   # random inputs → interpreter vs. compiled C
+lake exe lc ringtest [scripts] [seed]      # ring buffer: model vs. interpreter vs. compiled C
 ```
 
 ## How the differential test works (design §7)
@@ -232,7 +233,8 @@ def difftest (n seed : Nat) (only : Option String) : IO UInt32 := do
   let mut failures := 0
   IO.println s!"difftest: {n} random cases per function, seed {seed}"
   IO.println s!"{"function".pushn ' ' 10} ok  stuck(flagged)  fuel  result"
-  for f in Examples.M4.all.filter (fun f => only.all (· == f.name)) do
+  let fns := Examples.M4.all ++ [Examples.M5.rbPush, Examples.M5.rbPop]
+  for f in fns.filter (fun f => only.all (· == f.name)) do
     let (st, r') ← testFn dir f n r; r := r'
     let verdict := if st.mismatches.isEmpty then "PASS" else "FAIL"
     if !st.mismatches.isEmpty then failures := failures + 1
@@ -243,10 +245,105 @@ def difftest (n seed : Nat) (only : Option String) : IO UInt32 := do
   IO.println (if failures == 0 then "ALL PASS" else s!"{failures} function(s) FAILED")
   return if failures == 0 then 0 else 1
 
+/-! ## `lc ringtest`: the ring buffer against the *abstract* queue model
+
+The difftest compares C with the interpreter. Here the oracle is the specification itself,
+a plain `List` used as a queue, which is what `rbPush_correct`/`rbPop_correct` say the code
+implements. Each random script of operations runs three ways: the model, the interpreter
+(chained `callMem`s), and compiled C under sanitizers and -O2. All three must agree. -/
+
+/-- `some x` = push x, `none` = pop. -/
+abbrev Op := Option Nat
+
+def modelRun (cap : Nat) : List Nat → List Op → List String
+  | _, [] => []
+  | q, some x :: ops =>
+    if q.length < cap then s!"push {x}: true" :: modelRun cap (q ++ [x]) ops
+    else s!"push {x}: false" :: modelRun cap q ops
+  | [], none :: ops => "pop: empty" :: modelRun cap [] ops
+  | a :: q, none :: ops => s!"pop: {a}u8" :: modelRun cap q ops
+
+def interpRun (cap : Nat) (m : Mem) : List Op → List String
+  | [] => []
+  | some x :: ops =>
+    match Examples.M5.rbPush.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
+        Val.ofInt .u8 x] m with
+    | .ok (.bool b, m') => s!"push {x}: {b}" :: interpRun cap m' ops
+    | _ => ["push: interpreter stuck"]
+  | none :: ops =>
+    match Examples.M5.rbPop.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
+        .ptr .u8 ⟨2, 0⟩] m with
+    | .ok (.bool true, m') =>
+      match m'.read 2 0 with
+      | some w => s!"pop: {w}" :: interpRun cap m' ops
+      | none => ["pop: no out"]
+    | .ok (.bool false, m') => "pop: empty" :: interpRun cap m' ops
+    | _ => ["pop: interpreter stuck"]
+
+def genScript (r : Rng) (len : Nat) : List Op × Rng := Id.run do
+  let mut r := r
+  let mut ops := []
+  for _ in [0:len] do
+    let (k, r1) := r.below 2; r := r1
+    let (x, r2) := r.below 256; r := r2
+    ops := ops ++ [if k == 0 then some x else none]
+  return (ops, r)
+
+def cScript (k cap : Nat) (ops : List Op) : String :=
+  let calls := ops.map fun
+    | some x => s!"    ok = rb_push(buf, st, {cap}u, (uint8_t){x}u); printf(\"push {x}: %s\\n\", ok ? \"true\" : \"false\");\n"
+    | none => "    ok = rb_pop(buf, st, " ++ toString cap ++ "u, out); if (ok) printf(\"pop: %uu8\\n\", (unsigned)out[0]); else printf(\"pop: empty\\n\");\n"
+  s!"  if (sel < 0 || sel == {k}) \{\n    uint8_t *buf = malloc({cap}); uint32_t *st = malloc(2 * sizeof(uint32_t)); uint8_t *out = malloc(1);\n" ++
+  s!"    st[0] = 0u; st[1] = 0u; bool ok;\n" ++ String.join calls ++
+  "    free(buf); free(st); free(out);\n  }\n"
+
+def ringtest (nScripts seed : Nat) : IO UInt32 := do
+  let dir := ".lake/ringtest"
+  IO.FS.createDirAll dir
+  let mut r : Rng := ⟨(seed.toUInt64 * 0x9E3779B97F4A7C15) ||| 1⟩
+  let mut expected : List String := []
+  let mut cases : List String := []
+  let mut interpMismatch := 0
+  for k in [0:nScripts] do
+    let (c, r1) := r.below 6; r := r1
+    let cap := c + 1
+    let (ops, r2) := genScript r 40; r := r2
+    let model := modelRun cap [] ops
+    let mem0 : Mem := [(0, List.replicate cap (Val.ofInt .u8 0)), (1, [Val.ofInt .u32 0, Val.ofInt .u32 0]),
+      (2, [Val.ofInt .u8 0])]
+    if interpRun cap mem0 ops != model then interpMismatch := interpMismatch + 1
+    expected := expected ++ model
+    cases := cases ++ [cScript k cap ops]
+  let tu ← match cTranslationUnit [Examples.M5.rbPush, Examples.M5.rbPop] with
+    | .ok t => pure t
+    | .error e => IO.eprintln e; return 1
+  let src := s!"{dir}/ring.c"
+  IO.FS.writeFile src (tu ++ "\n#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char **argv) {\n" ++
+    "  int sel = argc > 1 ? atoi(argv[1]) : -1;\n" ++ String.join cases ++ "  return 0;\n}\n")
+  let mut fails := 0
+  IO.println s!"ringtest: {nScripts} random scripts × 40 ops, capacities 1–6, seed {seed}"
+  IO.println s!"  interpreter vs model: {nScripts - interpMismatch}/{nScripts} scripts agree"
+  if interpMismatch > 0 then fails := fails + 1
+  for (tag, flags) in [("san", sanFlags), ("O2", ["-O2"])] do
+    let bin := s!"{dir}/ring.{tag}"
+    if let some err ← compile src bin flags then
+      IO.println s!"  [{tag}] compile failed:\n{err}"; return 1
+    let out ← IO.Process.output { cmd := bin, args := #[] }
+    let got := (out.stdout.splitOn "\n").filter (· ≠ "")
+    let bad := (expected.zip got).filter (fun (e, g) => e != g)
+    let ok := out.exitCode == 0 && bad.isEmpty && got.length == expected.length
+    IO.println s!"  compiled C [{tag}] vs model: {if ok then "PASS" else "FAIL"} ({got.length}/{expected.length} lines)"
+    for (e, g) in bad.take 3 do IO.println s!"    expected {e}, got {g}"
+    if !ok then
+      IO.println s!"    {out.stderr.take 400}"
+      fails := fails + 1
+  IO.println (if fails == 0 then "ALL PASS" else "FAILED")
+  return if fails == 0 then 0 else 1
+
 def main (args : List String) : IO UInt32 := do
   match args with
   | "emit" :: rest =>
-    match cTranslationUnit Examples.M4.all with
+    match cTranslationUnit (Examples.M4.all ++ [Examples.M5.rbPush, Examples.M5.rbPop]) with
     | .error e => IO.eprintln e; return 1
     | .ok code =>
       match rest with
@@ -257,4 +354,8 @@ def main (args : List String) : IO UInt32 := do
     let n := (rest[0]? >>= String.toNat?).getD 200
     let seed := (rest[1]? >>= String.toNat?).getD 1
     difftest n seed rest[2]?
-  | _ => IO.println "usage: lc emit [out.c] | lc difftest [cases] [seed] [function]"; return 2
+  | "ringtest" :: rest =>
+    let n := (rest[0]? >>= String.toNat?).getD 200
+    let seed := (rest[1]? >>= String.toNat?).getD 1
+    ringtest n seed
+  | _ => IO.println "usage: lc emit [out.c] | lc difftest [cases] [seed] [function] | lc ringtest [scripts] [seed]"; return 2
