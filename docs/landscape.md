@@ -1,4 +1,4 @@
-# Phase 1 — Landscape report: a Low*-style, C-emitting language in Lean 4
+# Landscape report: a Low*-style, C-emitting language in Lean 4
 
 *Researched 2026-11-08. "Last push" dates are from the GitHub API on that day. A claim marked **(self-reported)** comes from a project's own README and was not checked independently.*
 

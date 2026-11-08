@@ -1,5 +1,5 @@
 import LC
-import Examples
+import Tests
 
 /-!
 # `lake exe lc`: emit C, and differentially test it against the interpreter
@@ -14,7 +14,7 @@ lake exe lc ringtest [scripts] [seed]      # ring buffer: model vs. interpreter 
 
 For each function `f` and each random input `(args, mem)`:
 
-1. Run the **interpreter** (`Fn.callMem`, proved sound in M1/M3).
+1. Run the **interpreter** (`Fn.callMem`, proved sound in LC/Interp.lean).
    * `ok (v, mem')`: an expected output line.
    * `stuck`: this input has **UB**. It is *never* run as a normal test, because C may
      do anything. It goes into the "UB oracle" pass below.
@@ -233,7 +233,7 @@ def difftest (n seed : Nat) (only : Option String) : IO UInt32 := do
   let mut failures := 0
   IO.println s!"difftest: {n} random cases per function, seed {seed}"
   IO.println s!"{"function".pushn ' ' 10} ok  stuck(flagged)  fuel  result"
-  let fns := Examples.M4.all ++ [Examples.M5.rbPush, Examples.M5.rbPop]
+  let fns := Tests.difftestFns
   for f in fns.filter (fun f => only.all (· == f.name)) do
     let (st, r') ← testFn dir f n r; r := r'
     let verdict := if st.mismatches.isEmpty then "PASS" else "FAIL"
@@ -266,12 +266,12 @@ def modelRun (cap : Nat) : List Nat → List Op → List String
 def interpRun (cap : Nat) (m : Mem) : List Op → List String
   | [] => []
   | some x :: ops =>
-    match Examples.M5.rbPush.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
+    match Examples.RingBuffer.rbPush.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
         Val.ofInt .u8 x] m with
     | .ok (.bool b, m') => s!"push {x}: {b}" :: interpRun cap m' ops
     | _ => ["push: interpreter stuck"]
   | none :: ops =>
-    match Examples.M5.rbPop.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
+    match Examples.RingBuffer.rbPop.callMem [.ptr .u8 ⟨0, 0⟩, .ptr .u32 ⟨1, 0⟩, Val.ofInt .u32 cap,
         .ptr .u8 ⟨2, 0⟩] m with
     | .ok (.bool true, m') =>
       match m'.read 2 0 with
@@ -314,7 +314,7 @@ def ringtest (nScripts seed : Nat) : IO UInt32 := do
     if interpRun cap mem0 ops != model then interpMismatch := interpMismatch + 1
     expected := expected ++ model
     cases := cases ++ [cScript k cap ops]
-  let tu ← match cTranslationUnit [Examples.M5.rbPush, Examples.M5.rbPop] with
+  let tu ← match cTranslationUnit [Examples.RingBuffer.rbPush, Examples.RingBuffer.rbPop] with
     | .ok t => pure t
     | .error e => IO.eprintln e; return 1
   let src := s!"{dir}/ring.c"
@@ -343,7 +343,7 @@ def ringtest (nScripts seed : Nat) : IO UInt32 := do
 def main (args : List String) : IO UInt32 := do
   match args with
   | "emit" :: rest =>
-    match cTranslationUnit (Examples.M4.all ++ [Examples.M5.rbPush, Examples.M5.rbPop]) with
+    match cTranslationUnit Tests.difftestFns with
     | .error e => IO.eprintln e; return 1
     | .ok code =>
       match rest with

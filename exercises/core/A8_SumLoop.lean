@@ -3,7 +3,7 @@ A8 — Verifying an imperative loop with Lean's VC generator.
 Run:  lean exercises/core/A8_SumLoop.lean
 
 `mvcgen` turns a goal about monadic code into verification conditions (VCs),
-leaving you to supply the loop invariant. Our own `wp` for LC (Milestone 2)
+leaving you to supply the loop invariant. Our own `wp` for LC (LC/Logic/Hoare.lean)
 will work the same way on *deep* ASTs — so pay attention to the shape of the VCs.
 
 Note: Lean 4.35 deprecates the name `mvcgen` in favour of an experimental `vcgen`.

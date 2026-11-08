@@ -1,7 +1,7 @@
 import LC.Interp
 
 /-!
-# Hoare logic for LC (Milestone 2): total correctness
+# Hoare logic for LC: total correctness
 
 ## The one definition everything rests on
 
@@ -39,7 +39,7 @@ Iris also take the semantic route.
 namespace LC
 
 /-- Assertions are predicates on states (a *shallow* embedding of the assertion
-language, while programs stay deep). Since M3 a state is a store plus a memory;
+language, while programs stay deep). A state is a store plus a memory;
 `LC/Logic/Sep.lean` adds a separation logic for the memory part. -/
 abbrev Assertion := State → Prop
 
@@ -118,7 +118,7 @@ theorem Triple.conseq {P P' Q Q' : Assertion} {s : Stmt}
 * `hexit`: if the condition is false, `I` implies the postcondition.
 
 Without `μ` this would be the partial-correctness rule, which is sound only for
-"if it terminates". Exercise M1.2's infinite loop is exactly what `μ` rules out. -/
+"if it terminates". Exercise Sem.2's infinite loop is exactly what `μ` rules out. -/
 theorem wp_while {c : Expr} {b : Stmt} {Q : Assertion}
     (I : Assertion) (μ : State → Nat)
     (hcond : ∀ σ, I σ → ∃ bv, c.eval σ.st = some (.bool bv))

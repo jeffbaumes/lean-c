@@ -8,7 +8,7 @@ type checker is a static, decidable approximation that rejects programs that
 would get stuck **for type reasons** (adding a `u8` to a `u32`, branching on an
 integer, assigning across types) before they run. That matters for two reasons:
 
-1. The C printer (M4) needs every expression's type to emit correct casts.
+1. The C printer needs every expression's type to emit correct casts.
 2. It removes the cheap obligations from proofs, leaving only the value-dependent
    ones (overflow, bounds, division by zero).
 

@@ -15,7 +15,7 @@ logic leaves you.
 
 (The other half, *progress*, says a well-typed expression over an initialised store
 gets stuck only for those value reasons. It needs a precise list of UB conditions and
-is better stated alongside the M3 VC generator.)
+is better stated alongside a VC generator.)
 -/
 
 namespace LC

@@ -12,7 +12,7 @@ import LC.Semantics
 
 `outOfFuel` is the only uninformative answer. Completeness ("if `Exec σ s σ'`,
 some fuel makes `run` succeed") is left as an exercise
-(`exercises/core/M1_Exercises.lean`).
+(`exercises/core/Semantics.lean`).
 
 Precedent: Certora's Lean Clight proves `doStep_sound` for its interpreter. CompCert has
 no executable Clight semantics at all.
@@ -253,7 +253,7 @@ theorem Fn.callMem_sound {f : Fn} {args : List Val} {m : Mem} {fuel : Nat} {v : 
     · simp
     · simp
 
-/-- Call a function that uses no memory (all M1/M2 examples). -/
+/-- Call a function that uses no memory (pure computations). -/
 def Fn.call (f : Fn) (args : List Val) (fuel : Nat := 100000) : Result Val :=
   match f.callMem args [] fuel with
   | .ok (v, _) => .ok v

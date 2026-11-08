@@ -1,23 +1,23 @@
--- Solutions to exercises/core/M5_Exercises.lean.  Run: lake env lean exercises/solutions/M5_Exercises.lean
+-- Solutions to exercises/core/RingBuffer.lean.  Run: lake env lean exercises/solutions/RingBuffer.lean
 import LC
-import Examples.M5
-open LC Examples.M2 Examples.M3 Examples.M5
+import Examples.RingBuffer
+open LC Examples.RingBuffer
 
-/-! ## M5.1
+/-! ## Ring.1
 With `idx = (head + len) % cap` the interpreter `#guard`s and `lake exe lc ringtest` should still pass (try it):
 capacities 1–6 never get near 2³². But for `cap > 2³¹`, `head + len` can exceed 2³² and wrap
 (*defined* behaviour, so no sanitizer fires), and `% cap` then picks the wrong slot. The proof
 breaks exactly there: the `idx` value is `(head + len) mod 2³² mod cap`, not `slot cap head len`.
 You can only finish it by adding `cap ≤ 2³¹` to the precondition. Testing passed; proof refused. -/
 
-/-! ## M5.2
+/-! ## Ring.2
 `rb` requires `head < cap`, so no state with `cap = 0` satisfies it, and the theorems say nothing.
 The C is still safe: `rb_push` sees `len < 0` false and returns false; `rb_pop` sees `len = 0`
 and returns false; neither touches `buf`. The spec could be extended (`head = 0` when `cap = 0`),
 but a zero-capacity queue is useless, so excluding it is a reasonable spec choice. Just make it
 a documented one. -/
 
-/-! ## M5.3 composing the specs: push x, then pop, gives back x -/
+/-! ## Ring.3 composing the specs: push x, then pop, gives back x -/
 theorem push_then_pop (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (hpos : 0 < cap)
     (x : BitVec 8) (w : Val) (h hf : Heap) (m : Mem)
     (hpre : (rb b s cap [] ∗ array o [w]) h) (d : h.Disjoint hf) (hm : m.heap = h.union hf) :

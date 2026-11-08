@@ -1,12 +1,15 @@
 name = "lean-c"
 version = "0.1.0"
-defaultTargets = ["LC", "Examples"]
+defaultTargets = ["LC", "Examples", "Tests", "lc"]
 
 [[lean_lib]]
 name = "LC"
 
 [[lean_lib]]
 name = "Examples"
+
+[[lean_lib]]
+name = "Tests"
 
 [[lean_exe]]
 name = "lc"

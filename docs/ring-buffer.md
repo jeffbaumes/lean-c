@@ -1,4 +1,4 @@
-# Milestone 5 walkthrough: a ring buffer, verified end to end
+# A ring buffer, verified end to end
 
 **Status:** done. `lake build` is green, with 0 `sorry` and 0 `native_decide`.
 
@@ -6,7 +6,7 @@ This is the first artifact the project was meant to produce: a small, useful pie
 
 ## The C
 
-[generated/examples.c](../generated/examples.c) is printed from [Examples/M5.lean](../Examples/M5.lean):
+[generated/examples.c](../generated/examples.c) is printed from [Examples/RingBuffer.lean](../Examples/RingBuffer.lean):
 
 ```c
 bool rb_push(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t x) {
@@ -38,7 +38,7 @@ bool rb_push(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t x) {
 
 LC has no structs yet, so the header `{head, len}` is a two-word array `st`. That's a readability cost, discussed below.
 
-**No `%`.** The textbook index `(head + len) % cap` overflows `uint32_t` when `cap > 2³¹`, and then silently picks the wrong slot. Because unsigned wraparound is defined, no sanitizer would notice. The code above computes the slot by comparing with `cap - head`, which can't overflow. Exercise M5.1 has you put the `%` back: all the tests still pass, and the proof refuses it.
+**No `%`.** The textbook index `(head + len) % cap` overflows `uint32_t` when `cap > 2³¹`, and then silently picks the wrong slot. Because unsigned wraparound is defined, no sanitizer would notice. The code above computes the slot by comparing with `cap - head`, which can't overflow. Exercise Ring.1 has you put the `%` back: all the tests still pass, and the proof refuses it.
 
 ## The specification
 
@@ -57,13 +57,13 @@ def rb (b s : Ptr) (cap : Nat) (q : List (BitVec 8)) : HProp := fun h =>
 
 - **`rbPush_correct`:** if `q.length < cap`, push returns `true` and the buffer now represents `q ++ [x]`. Otherwise it returns `false` and still represents `q`.
 - **`rbPop_correct`:** for `q = a :: q'`, pop returns `true`, `out[0] = a`, and the buffer represents `q'`. For `q = []` it returns `false` and nothing changes.
-- **`push_then_pop`** (exercise M5.3, solved): the two specs **compose**. Push then pop returns what was pushed. The proof uses only the two theorems and the frame (the `out` byte sits in push's frame), never the code.
+- **`push_then_pop`** (exercise Ring.3, solved): the two specs **compose**. Push then pop returns what was pushed. The proof uses only the two theorems and the frame (the `out` byte sits in push's frame), never the code.
 
 ## How the proofs go
 
-They are about 90 lines (push) and 120 lines (pop). They follow the M3 pattern: `apply swp_seq`, `apply swp_load'`/`swp_store'`, then `simp` and a few `omega` calls.
+They are about 90 lines (push) and 120 lines (pop). They follow the pattern from docs/separation-logic.md: `apply swp_seq`, `apply swp_load'`/`swp_store'`, then `simp` and a few `omega` calls.
 
-New in M5:
+New here:
 
 - **Three-part heaps.** Pop owns `buf ∗ st ∗ out`. Reads reach through nested stars (`star_get_left (star_get_right …)`), and writes go through `star_update_left`/`star_update_right`, so the separation structure is preserved at every step. `star_update_right`, `star_mono`, `star_ne` and `array_ne_none` were added to [LC/Logic/Sep.lean](../LC/Logic/Sep.lean).
 - **Branches that rejoin.**
@@ -85,7 +85,7 @@ New in M5:
 
 The oracle here is the **specification**, not the interpreter. That makes it a test of the spec, the semantics and the printer together. In the general difftest, `rb_push` and `rb_pop` also pass on random states (mostly *invalid* ones), and every stuck case is flagged by the sanitizers (40/40). For instance, `head ≥ cap` makes `buf[idx]` go out of bounds, and the interpreter and ASan agree.
 
-## Proved · tested · trusted (end of M5)
+## Proved · tested · trusted
 
 For the claim *"`rb_push` in generated/examples.c, compiled with clang, implements a bounded FIFO push"*:
 
@@ -93,31 +93,28 @@ For the claim *"`rb_push` in generated/examples.c, compiled with clang, implemen
 |---|---|
 | LC `rb_push` meets its spec, for all capacities < 2³², all states satisfying `rb`, and inside any memory | **proved** (`rbPush_correct`) |
 | the spec composes (push ∘ pop) | **proved** (`push_then_pop`) |
-| interpreter = LC semantics | **proved** (M1/M3) |
+| interpreter = LC semantics | **proved** (LC/Interp.lean) |
 | LC semantics agrees with C11 for these constructs | **tested** (difftest, ringtest), not proved |
-| printer output means what the AST means | **tested**, not proved (M6) |
+| printer output means what the AST means | **tested**, not proved (a printer proof is future work) |
 | `int` is 32 bits | **checked** by `_Static_assert` at compile time |
-| clang compiles C correctly | **trusted** (CompCert would replace this, M6+) |
+| clang compiles C correctly | **trusted** (CompCert could replace this) |
 | Lean's kernel | **trusted** |
 
 ## What's missing, and why
 
 - **`break` and early `return`:** deferred a second time. Neither the ring buffer nor any example needs them, and adding them means changing `Exec`'s type and re-proving everything. The right moment is when a target needs them, for example a parser that bails out on bad input.
-- **Structs:** the `st` array works but reads worse than `rb->head`. Adding structs means struct types and field access in the syntax, plus a layout story for M6's byte-level Clight bridge. It's the most valuable language addition left.
+- **Structs:** the `st` array works but reads worse than `rb->head`. Adding structs means struct types and field access in the syntax, plus a layout story for any future byte-level C semantics. It's the most valuable language addition left.
 - **`sep_simp`:** see above.
 
 Each of these is a follow-up on its own.
 
 ## Your exercises
 
-[exercises/core/M5_Exercises.lean](../exercises/core/M5_Exercises.lean):
+[exercises/core/RingBuffer.lean](../exercises/core/RingBuffer.lean):
 
-- **M5.1:** put back `%`, watch the tests pass and the proof fail.
-- **M5.2:** the `cap = 0` corner.
-- **M5.3:** compose the specs.
-- **M5.4:** list the TCB for the C.
-- **M5.5 (stretch):** `rb_len`.
+- **Ring.1:** put back `%`, watch the tests pass and the proof fail.
+- **Ring.2:** the `cap = 0` corner.
+- **Ring.3:** compose the specs.
+- **Ring.4:** list the TCB for the C.
+- **Ring.5 (stretch):** `rb_len`.
 
-## Next: Milestone 6 (stretch)
-
-Prove the code generator correct for a fragment. Translate LC's AST to Certora's Lean Clight AST, and prove that every LC execution has a matching Clight execution (forward simulation, design §6). The first step is checking whether Certora's `export/` Lean files can be depended on, both technically (Lean v4.32.1 vs our v4.35.0) and by licence.

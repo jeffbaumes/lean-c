@@ -74,66 +74,6 @@ void copy_u8(uint8_t *dst, uint8_t *src, uint32_t n) {
   }
 }
 
-uint16_t mul16(uint16_t a, uint16_t b) {
-  return ((uint16_t)((uint32_t)a * (uint32_t)b));
-}
-
-uint8_t add8(uint8_t a, uint8_t b) {
-  return ((uint8_t)((uint32_t)a + (uint32_t)b));
-}
-
-uint8_t sub8(uint8_t a, uint8_t b) {
-  return ((uint8_t)((uint32_t)a - (uint32_t)b));
-}
-
-uint8_t shl8(uint8_t a, uint8_t b) {
-  return ((uint8_t)((uint32_t)a << (uint32_t)b));
-}
-
-uint8_t neg8(uint8_t a) {
-  return ((uint8_t)(-(uint32_t)a));
-}
-
-uint16_t not16(uint16_t a) {
-  return ((uint16_t)(~(uint32_t)a));
-}
-
-int16_t mul_i16(int16_t a, int16_t b) {
-  return ((int16_t)(a * b));
-}
-
-int32_t add_i32(int32_t a, int32_t b) {
-  return (a + b);
-}
-
-int32_t div_i32(int32_t a, int32_t b) {
-  return (a / b);
-}
-
-int32_t mod_i32(int32_t a, int32_t b) {
-  return (a % b);
-}
-
-int64_t neg_i64(int64_t a) {
-  return (-a);
-}
-
-bool lt_i8(int8_t a, int8_t b) {
-  return (a < b);
-}
-
-uint8_t cast_u8(int32_t a) {
-  return ((uint8_t)a);
-}
-
-int8_t cast_i8(uint32_t a) {
-  return ((int8_t)a);
-}
-
-int64_t cast_i64(uint32_t a) {
-  return (((int64_t)a) * INT64_C(-1));
-}
-
 uint32_t fnv1a(uint8_t *p, uint32_t n) {
   uint32_t i;
   uint8_t c;
@@ -193,4 +133,64 @@ bool rb_pop(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t *out) {
     ok = false;
   }
   return ok;
+}
+
+uint16_t mul16(uint16_t a, uint16_t b) {
+  return ((uint16_t)((uint32_t)a * (uint32_t)b));
+}
+
+uint8_t add8(uint8_t a, uint8_t b) {
+  return ((uint8_t)((uint32_t)a + (uint32_t)b));
+}
+
+uint8_t sub8(uint8_t a, uint8_t b) {
+  return ((uint8_t)((uint32_t)a - (uint32_t)b));
+}
+
+uint8_t shl8(uint8_t a, uint8_t b) {
+  return ((uint8_t)((uint32_t)a << (uint32_t)b));
+}
+
+uint8_t neg8(uint8_t a) {
+  return ((uint8_t)(-(uint32_t)a));
+}
+
+uint16_t not16(uint16_t a) {
+  return ((uint16_t)(~(uint32_t)a));
+}
+
+int16_t mul_i16(int16_t a, int16_t b) {
+  return ((int16_t)(a * b));
+}
+
+int32_t add_i32(int32_t a, int32_t b) {
+  return (a + b);
+}
+
+int32_t div_i32(int32_t a, int32_t b) {
+  return (a / b);
+}
+
+int32_t mod_i32(int32_t a, int32_t b) {
+  return (a % b);
+}
+
+int64_t neg_i64(int64_t a) {
+  return (-a);
+}
+
+bool lt_i8(int8_t a, int8_t b) {
+  return (a < b);
+}
+
+uint8_t cast_u8(int32_t a) {
+  return ((uint8_t)a);
+}
+
+int8_t cast_i8(uint32_t a) {
+  return ((int8_t)a);
+}
+
+int64_t cast_i64(uint32_t a) {
+  return (((int64_t)a) * INT64_C(-1));
 }

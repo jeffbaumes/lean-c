@@ -1,4 +1,4 @@
-# Milestone 1 walkthrough: syntax and interpreter
+# Syntax, semantics and the interpreter
 
 **Status:** done. `lake build` is green, with 0 `sorry` and 0 `native_decide`. Every theorem depends only on `propext` and `Quot.sound` (checked with `#print axioms`; not even `Classical.choice`).
 
@@ -18,7 +18,7 @@ About 860 lines in total. Read the files in this order. Each section says *what*
   - `INT_MIN % -1` is UB, because C11 §6.5.5¶6 ties `%` to the representability of `/`.
   - Signed shifts are excluded entirely.
   - Conversion to a signed type that can't hold the value is *implementation-defined* in C. LC makes it stuck, so no proved program depends on it.
-- **`&&` and `||` short-circuit.** `d != 0 && n / d > 1` is defined when `d = 0`. Exercise M1.8 makes you break this and watch the tests fail.
+- **`&&` and `||` short-circuit.** `d != 0 && n / d > 1` is defined when `d = 0`. Exercise Sem.8 makes you break this and watch the tests fail.
 - **`Exec`** is a big-step inductive relation. Diverging and stuck programs simply have *no* derivation, so "UB" and "no rule applies" are the same thing.
 
 ## 3. [LC/Interp.lean](../LC/Interp.lean): an executable twin, proved
@@ -27,20 +27,20 @@ About 860 lines in total. Read the files in this order. Each section says *what*
 - **Three theorems:**
   - `run_sound`: `.ok` implies `Exec`.
   - `Exec.det`: the language is deterministic.
-  - `run_stuck_sound`: `.stuck` implies **no** execution exists. This one needs determinism (exercise M1.7 asks you why).
+  - `run_stuck_sound`: `.stuck` implies **no** execution exists. This one needs determinism (exercise Sem.7 asks you why).
   - Together they mean the interpreter's `ok`/`stuck` answers are *facts about the semantics*. Only `outOfFuel` is uninformative.
 - `Fn.call` and `Fn.call_sound` lift this to functions.
 
 ## 4. [LC/Typing.lean](../LC/Typing.lean) and [LC/Notation.lean](../LC/Notation.lean)
 
-- The type checker is a `Bool` function: same-type operands, unsigned-only shifts, `bool` conditions, distinct names. Its soundness theorem is planned for M2, where the logic needs it.
+- The type checker is a `Bool` function: same-type operands, unsigned-only shifts, `bool` conditions, distinct names. Its soundness (type preservation) is in LC/TypingSound.lean.
 - The notation is operator overloading only (`+`, `&&&`, `<.`, `::=`, `Stmt.block`), not a parser. Comparisons end in `.` because Lean's `<` must return a `Prop`.
 
-## 5. [Examples/M1.lean](../Examples/M1.lean)
+## 5. [Examples/SumTo.lean](../Examples/SumTo.lean)
 
 | Program | What it shows |
 |---|---|
-| `sumTo` | the M2 proof target; a `u64` accumulator with an explicit cast |
+| `sumTo` | the Hoare-logic proof target; a `u64` accumulator with an explicit cast |
 | `gcd`, `popcount` | `%`, masks, unsigned shifts |
 | `sub32` | `INT32_MIN - 1` is `.stuck`; the `u32` version wraps |
 | `ubZoo` | division by zero, `INT_MIN/-1`, `INT_MIN%-1`, shift ≥ width, `-INT8_MIN`, impl-defined cast: all stuck. Defined casts work |
@@ -51,21 +51,18 @@ About 860 lines in total. Read the files in this order. Each section says *what*
 
 `theorem sumTo_10 : sumTo.Returns [.u32 10] (.u64 55)` is proved by `Fn.call_sound (by decide)`. The *kernel* runs the interpreter, and the soundness theorem turns that run into a semantic fact. That's proof by computation, with the compiler not trusted.
 
-## Proved · tested · trusted (Milestone 1)
+## Proved · tested · trusted
 
 | Proved (Lean kernel) | Tested (`#guard`, compiled evaluation) | Trusted |
 |---|---|---|
-| interpreter ok ⇒ execution; stuck ⇒ no execution; determinism; two concrete program results (`sumTo_10`, `gcd_1071_462`) | ~30 behaviours across 9 programs, including every UB class | **That `Exec`/`eval` match C11.** It's checked only by reading against the cited clauses. Differential testing against real C starts in M4. Also the Lean kernel, and the compiled evaluator behind `#guard`/`#eval` (tests only, never proofs) |
+| interpreter ok ⇒ execution; stuck ⇒ no execution; determinism; two concrete program results (`sumTo_10`, `gcd_1071_462`) | ~30 behaviours across 9 programs, including every UB class | **That `Exec`/`eval` match C11.** It's checked only by reading against the cited clauses. Differential testing against real C is in docs/c-backend.md. Also the Lean kernel, and the compiled evaluator behind `#guard`/`#eval` (tests only, never proofs) |
 
 ## Your exercises
 
-[exercises/core/M1_Exercises.lean](../exercises/core/M1_Exercises.lean) has 8 exercises, each 15 minutes or less. Run it with `lake env lean exercises/core/M1_Exercises.lean`.
-- M1.1–M1.2 write and break programs.
-- M1.3–M1.6 are proofs, ending with interpreter completeness.
-- M1.7 is a "why", and M1.8 is an experiment.
+[exercises/core/Semantics.lean](../exercises/core/Semantics.lean) has 8 exercises, each 15 minutes or less. Run it with `lake env lean exercises/core/Semantics.lean`.
+- Sem.1–Sem.2 write and break programs.
+- Sem.3–Sem.6 are proofs, ending with interpreter completeness.
+- Sem.7 is a "why", and Sem.8 is an experiment.
 
-M1.2 is the one I most want you to do. It finds a bug that **isn't UB**, an infinite loop caused by defined wraparound. That bug is why M2 needs *total-correctness* specs, not just "no UB".
+Sem.2 is the one I most want you to do. It finds a bug that **isn't UB**, an infinite loop caused by defined wraparound. That bug is why the Hoare logic needs *total-correctness* specs, not just "no UB".
 
-## Next: Milestone 2
-
-Hoare logic over this `Exec`: `wp`, `Triple`, `wp_sound`, and a proof that `sumTo n` returns `n(n+1)/2` for **all** `n` (not just 10). Core assignments A5, A7 and A8 are the prep.

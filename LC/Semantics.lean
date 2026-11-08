@@ -1,7 +1,7 @@
 import LC.Syntax
 
 /-!
-# LC semantics (Milestone 1)
+# LC semantics
 
 Two layers:
 
@@ -15,7 +15,7 @@ Two layers:
   `while` may diverge.
 
 **How UB shows up.** No rule fires, so there is no derivation: the program is
-*stuck*. A later milestone's triples promise that a derivation exists, so a
+*stuck*. The program logic's triples promise that a derivation exists, so a
 proved program cannot hit UB (design §3).
 
 C references are to the C11 standard (N1570).
@@ -155,7 +155,7 @@ def Expr.eval (σ : Store) : Expr → Option Val
   | .binop op a b => do evalBinOp op (← a.eval σ) (← b.eval σ)
   | .cast t e => (e.eval σ).bind (evalCast t)
 
-/-! ## Memory (Milestone 3)
+/-! ## Memory
 
 A memory maps block ids to arrays of cells. The block layout (which blocks exist,
 and how long each is) never changes: LC has no allocation yet, so buffers come from

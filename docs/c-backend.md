@@ -1,10 +1,10 @@
-# Milestone 4 walkthrough: the C printer and differential testing
+# The C printer and differential testing
 
 **Status:** done. `lake build` is green, the differential tester reports **ALL PASS**, and the emitted C compiles with `-std=c11 -Wall -Wextra -Werror -pedantic`, including under `-ffreestanding -nostdlib`. This is the first milestone where LC's semantics meets a real C compiler.
 
 ## 1. [LC/Emit/C.lean](../LC/Emit/C.lean): the printer
 
-`Fn.toC : Fn → Except String String`. It's about 180 lines, and **it's trusted** (proving it is M6). So the rules aim to be obviously correct, not clever:
+`Fn.toC : Fn → Except String String`. It's about 180 lines, and **it's trusted** (proving it correct is future work). So the rules aim to be obviously correct, not clever:
 
 | Rule | Why |
 |---|---|
@@ -35,7 +35,7 @@ uint64_t array_sum(uint32_t *p, uint32_t n) {
 }
 ```
 
-## 2. [Examples/M4.lean](../Examples/M4.lean): programs aimed at the printer's weak spots
+## 2. [Tests/PrinterStress.lean](../Tests/PrinterStress.lean): programs aimed at the printer's weak spots
 
 `mul16`, `add8`, `sub8`, `shl8`, `neg8` and `not16` cover narrow unsigned operations. `mul_i16` and `add_i32` cover signed overflow. `div_i32` and `mod_i32` cover truncating division, including negative operands. `neg_i64` covers `-INT64_MIN`. `lt_i8` is a signed comparison. `cast_u8`, `cast_i8` and `cast_i64` cover conversions. `fnv1a` is a real hash over a byte buffer with a known-answer `#guard`. Together with eight earlier examples, that's 24 functions.
 
@@ -57,18 +57,18 @@ The system compiler comes from `$LC_CC`, default `cc`. Plain `clang` doesn't wor
 
 - **Harness bugs:**
   - A trailing-space format mismatch.
-  - Two functions shared the name `sub32`, so one overwrote the other's files. LC now gives `sub32u` its own name. Name collisions in a translation unit are something the printer should reject (noted for M5).
+  - Two functions shared the name `sub32`, so one overwrote the other's files. LC now gives `sub32u` its own name. Name collisions in a translation unit are something the printer should reject (the printer now rejects them).
   - One process per case took 9 minutes. Batching OK cases into one run brought it down to about 5.
-- **The printer's promotion rule matters, and the tester proves it.** Replacing the `uint32_t` casts with naive `a * b` makes the sanitised build fail on the first edge case: `runtime error: signed integer overflow: 65535 * 65535 cannot be represented in type 'int'`. The **-O2 build passed anyway**, because the optimiser happened to emit a wrapping multiply. Without the sanitised configuration, this bug would ship. (Exercise M4.1 reproduces it.)
+- **The printer's promotion rule matters, and the tester proves it.** Replacing the `uint32_t` casts with naive `a * b` makes the sanitised build fail on the first edge case: `runtime error: signed integer overflow: 65535 * 65535 cannot be represented in type 'int'`. The **-O2 build passed anyway**, because the optimiser happened to emit a wrapping multiply. Without the sanitised configuration, this bug would ship. (Exercise C.1 reproduces it.)
 - **ASan missed a 16-element overread of a 1-element *stack* array.** It returned garbage with exit 0. Moving harness buffers to the heap fixed detection for `array_sum` (20/20 stuck cases flagged).
 - **Sanitizer silence isn't absence of UB.** `copy_u8(p, p, 7)` on a 1-byte buffer is out of bounds, but the optimiser deletes the self-copy `x[i] = x[i]` loop, so there's nothing to detect.
-- **LC is stricter than C, by design.** `mul_i16` and `cast_i8` have stuck cases that no sanitizer flags. In C those are implementation-defined conversions after promotion, not UB (C11 §6.3.1.3¶3). Stricter is the safe direction: LC only ever proves things about programs C also defines. (Exercise M4.2.)
+- **LC is stricter than C, by design.** `mul_i16` and `cast_i8` have stuck cases that no sanitizer flags. In C those are implementation-defined conversions after promotion, not UB (C11 §6.3.1.3¶3). Stricter is the safe direction: LC only ever proves things about programs C also defines. (Exercise C.2.)
 
-## 5. Proved · tested · trusted (after M4)
+## 5. Proved · tested · trusted
 
 | Proved | Tested | Trusted |
 |---|---|---|
-| everything through M3 | **the printer and the semantics' model of C**, on 2,055 interpreter-defined random cases across 24 functions, each run under sanitisers *and* -O2, on Apple clang 17/macOS x86-64. Also: sanitizers agree with LC about UB in most stuck cases | the printer itself (unproved); the C compiler; the 32-bit `int` assumption (now `_Static_assert`ed); that the tested cases are representative |
+| the interpreter, Hoare-logic and separation-logic results | **the printer and the semantics' model of C**, on 2,055 interpreter-defined random cases across 24 functions, each run under sanitisers *and* -O2, on Apple clang 17/macOS x86-64. Also: sanitizers agree with LC about UB in most stuck cases | the printer itself (unproved); the C compiler; the 32-bit `int` assumption (now `_Static_assert`ed); that the tested cases are representative |
 
 The TCB is the same set of components as before. What changed is that two of them, "the semantics matches C" and "the printer is right", now have evidence behind them.
 
@@ -97,19 +97,12 @@ Every UB that C also considers UB was caught: signed overflow (`sub32`, `add_i32
 
 ## Your exercises
 
-[exercises/core/M4_Exercises.lean](../exercises/core/M4_Exercises.lean):
+[exercises/core/CBackend.lean](../exercises/core/CBackend.lean):
 
-- **M4.1:** inject the naive-promotion bug and watch the tester catch it.
-- **M4.2:** why some UB isn't flagged.
-- **M4.3:** write your own printer-breaking function.
-- **M4.4:** a safe readability improvement.
-- **M4.5:** what PASS means.
-- **M4.6:** identifier guards.
+- **C.1:** inject the naive-promotion bug and watch the tester catch it.
+- **C.2:** why some UB isn't flagged.
+- **C.3:** write your own printer-breaking function.
+- **C.4:** a safe readability improvement.
+- **C.5:** what PASS means.
+- **C.6:** identifier guards.
 
-## Next: Milestone 5
-
-A real target, verified end to end, probably a **ring buffer**:
-- structs, or a fixed-capacity array with head/tail indices;
-- the deferred `break`/early `return`;
-- a name-collision check in the printer;
-- likely the `sep_simp` tactic, now that there will be three heap examples.

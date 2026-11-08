@@ -3,7 +3,7 @@ B1 — Separation logic from scratch, in 40 lines.   Run:  lean exercises/core/B
 
 A heap is a partial map; an assertion is a predicate on heaps. `P ∗ Q` holds of a
 heap that splits into two DISJOINT parts, one satisfying P, the other Q.
-This is the shallow-assertion style (Reynolds; Charguéraud; Bedrock2) we'll use in M3.
+This is the shallow-assertion style (Reynolds; Charguéraud; Bedrock2) LC's separation logic uses.
 -/
 
 abbrev Heap := Nat → Option Int

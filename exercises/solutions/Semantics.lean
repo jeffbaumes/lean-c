@@ -1,8 +1,8 @@
--- Solutions to exercises/core/M1_Exercises.lean.   Run: lake env lean exercises/solutions/M1_Exercises.lean
+-- Solutions to exercises/core/Semantics.lean.   Run: lake env lean exercises/solutions/Semantics.lean
 import LC
 open LC
 
-/-! ## M1.1 isqrt -/
+/-! ## Sem.1 isqrt -/
 def isqrt : Fn where
   name := "isqrt"; params := [("n", .int .u32)]; locals := [("r", .int .u64)]
   body := .block [
@@ -19,7 +19,7 @@ def isqrt : Fn where
 #guard isqrt.call [.u32 16] = .ok (.u32 4)
 #guard isqrt.call [.u32 4294967295] (fuel := 1000000) = .ok (.u32 65535)
 
-/-! ## M1.2 the wrapping bug -/
+/-! ## Sem.2 the wrapping bug -/
 def isqrtBad : Fn where
   name := "isqrt_bad"; params := [("n", .int .u32)]; locals := [("r", .int .u32)]
   body := .block [
@@ -32,11 +32,11 @@ def isqrtBad : Fn where
 -- For n = 2³²−1 *every* u32 value is ≤ n, so the guard `(r+1)*(r+1) <= n` is always true.
 -- Once r passes 65535, (r+1)² wraps mod 2³², and the loop never exits. It is an infinite
 -- loop with no UB anywhere, because wraparound is *defined*. A "no UB" proof would not
--- catch this; a total-correctness proof (with a variant) would. That is Milestone 2.
+-- catch this; a total-correctness proof (with a variant) would. See the Hoare-logic exercises.
 #guard isqrtBad.call [.u32 4294967295] (fuel := 200000) = .outOfFuel
 #guard isqrtBad.call [.u32 1000] = .ok (.u32 31)   -- fine on small inputs, which is why tests miss it
 
-/-! ## M1.3 `while false` is `skip` -/
+/-! ## Sem.3 `while false` is `skip` -/
 theorem while_false_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.while (.lit (.bool false)) s) σ' ↔ σ' = σ := by
   constructor
@@ -45,14 +45,14 @@ theorem while_false_iff (σ σ' : State) (s : Stmt) :
     | whileFalse _ => rfl
   · rintro rfl; exact .whileFalse (by simp [Expr.eval])
 
-/-! ## M1.4 `skip ;; s` -/
+/-! ## Sem.4 `skip ;; s` -/
 theorem skip_seq_iff (σ σ' : State) (s : Stmt) :
     Exec σ (.seq .skip s) σ' ↔ Exec σ s σ' := by
   constructor
   · intro h; cases h with | seq h₁ h₂ => cases h₁; exact h₂
   · intro h; exact .seq .skip h
 
-/-! ## M1.5 fuel monotonicity -/
+/-! ## Sem.5 fuel monotonicity -/
 theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
     run n σ s = .ok σ' → run m σ s = .ok σ' := by
   induction n generalizing m σ σ' s with
@@ -85,7 +85,7 @@ theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
       · simp
       · simp
 
-/-! ## M1.6 completeness -/
+/-! ## Sem.6 completeness -/
 theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
     ∃ n, run n σ s = .ok σ' := by
   induction h with
@@ -109,7 +109,7 @@ theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
   | load ha hv hty => exact ⟨1, by simp [run, ha, hv, hty]⟩
   | store ha he hty hw => exact ⟨1, by simp [run, ha, he, hty, hw]⟩
 
-/-! ## M1.7
+/-! ## Sem.7
 Determinism is used in the `seq` and `while` cases: the interpreter ran `s₁` to `σ₁`
 and got stuck *from σ₁*, while the hypothetical execution ran `s₁` to some `σₐ`. Only
 `Exec.det` lets us conclude `σₐ = σ₁`, so the hypothetical execution also has to

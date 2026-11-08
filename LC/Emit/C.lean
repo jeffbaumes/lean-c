@@ -1,12 +1,12 @@
 import LC.Typing
 
 /-!
-# The C printer (Milestone 4)
+# The C printer
 
 `Fn.toC : Fn → Except String String` prints an LC function as C11 that depends only
 on the freestanding headers `<stdint.h>`, `<stdbool.h>` and `<limits.h>`.
 
-**This file is in the trusted computing base.** Nothing here is proved yet (that's M6).
+**This file is in the trusted computing base.** Nothing here is proved yet (a correctness proof for the printer is future work).
 The differential tester (`Tools/DiffTest.lean`) is what checks it. So the rules
 below are written to be *obviously* right, not clever:
 
@@ -171,7 +171,7 @@ def cPreamble : String :=
   "_Static_assert(INT_MAX == 2147483647, \"LC's integer-promotion rules assume 32-bit int\");\n\n"
 
 /-- A translation unit. Function names must be distinct: C would reject (or, across files,
-silently merge) two definitions of one name. M4's tester hit exactly this with `sub32`. -/
+silently merge) two definitions of one name. The differential tester hit exactly this with `sub32`. -/
 def cTranslationUnit (fs : List Fn) : Except String String := do
   let names := fs.map (·.name)
   unless names.eraseDups.length == names.length do

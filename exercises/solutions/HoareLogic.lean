@@ -1,22 +1,22 @@
--- Solutions to exercises/core/M2_Exercises.lean.  Run: lake env lean exercises/solutions/M2_Exercises.lean
+-- Solutions to exercises/core/HoareLogic.lean.  Run: lake env lean exercises/solutions/HoareLogic.lean
 import LC
-import Examples.M2
-open LC Examples.M2
+import Examples.SumTo
+open LC Examples.SumTo
 
-/-! ## M2.1
+/-! ## Hoare.1
 Without `hcond`, the guard could be UB in an invariant state, e.g. `while (x / d > 0)` with
 `d = 0`. Then neither `whileTrue` nor `whileFalse` applies, so there's no execution, yet `hbody`
 and `hexit` would be vacuous (both assume the guard evaluated). The rule would "prove"
 a stuck program. -/
 
-/-! ## M2.2 swap through a temporary: pure symbolic execution -/
+/-! ## Hoare.2 swap through a temporary: pure symbolic execution -/
 example (x y z : Nat) :
     wp (.block ["t" ::= v "a", "a" ::= v "b", "b" ::= v "t"])
       (fun σ => σ.st.get "a" = some (nu32 y) ∧ σ.st.get "b" = some (nu32 x))
       ⟨[("a", nu32 x), ("b", nu32 y), ("t", nu32 z)], []⟩ := by
   simp [Stmt.block]
 
-/-! ## M2.3 max -/
+/-! ## Hoare.3 max -/
 def maxFn : Fn where
   name := "max"; params := [("a", .int .u32), ("b", .int .u32)]; locals := [("r", .int .u32)]
   body := .ite (v "a" <. v "b") ("r" ::= v "b") ("r" ::= v "a")
@@ -37,7 +37,7 @@ theorem maxFn_correct (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
   · left; simp [Nat.max_eq_right (Nat.le_of_lt h)]; exact ⟨h, rfl⟩
   · right; refine ⟨by omega, ?_⟩; simp [Nat.max_eq_left (Nat.le_of_not_lt h)]; rfl
 
-/-! ## M2.4 total correctness rejects `while (true) {}` -/
+/-! ## Hoare.4 total correctness rejects `while (true) {}` -/
 theorem spin_no_exec (σ σ' : State) : ¬ Exec σ (.while (.lit (.bool true)) .skip) σ' := by
   intro h
   generalize hs : Stmt.while (.lit (.bool true)) .skip = s at h

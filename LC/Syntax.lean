@@ -1,15 +1,14 @@
 /-!
-# LC syntax (Milestone 1)
+# LC syntax
 
 The *deep* embedding: LC programs are ordinary Lean data. Everything else (the
 semantics, the interpreter, the program logic, the C printer) is a function
 or relation over these types.
 
-Design references: `docs/phase2-design.md` §1 (deep core), §2 (subset), §4 (integers).
+Design references: `docs/design.md` §1 (deep core), §2 (subset), §4 (integers).
 
-Milestone-1 scope: fixed-width integers, booleans, locals, arithmetic, `if`,
-`while`, and one function body with a final `return` expression. Memory and
-pointers arrive in Milestone 3.
+Scope: fixed-width integers, booleans, pointers into typed arrays, locals,
+arithmetic, `if`, `while`, and functions.
 -/
 
 namespace LC
@@ -48,7 +47,7 @@ def min (t : IntTy) : Int := if t.signed then -(2 ^ (t.bits - 1) : Int) else 0
 def max (t : IntTy) : Int := if t.signed then (2 ^ (t.bits - 1) : Int) - 1 else (2 ^ t.bits : Int) - 1
 end IntTy
 
-/-- LC types. `ptr t` is a pointer into an array of `t` (C: `t *`). Structs come in M5. -/
+/-- LC types. `ptr t` is a pointer into an array of `t` (C: `t *`). No structs yet. -/
 inductive Ty
   | int  (t : IntTy)
   | bool
@@ -56,7 +55,7 @@ inductive Ty
   | unit
 deriving DecidableEq, Repr, Inhabited
 
-/-! ## Pointers (Milestone 3)
+/-! ## Pointers
 
 A pointer is a **block** and an **offset** (design §3; CompCert's and Low\*'s
 memory models). A block is one array object, such as a buffer the caller passed in.
@@ -172,8 +171,7 @@ deriving DecidableEq, Repr, Inhabited
 
 A function is: typed parameters, typed locals, a body, and a result expression
 evaluated after the body (one `return` at the end). Early `return` and `break`
-need a richer outcome type. They were planned for M3 but are deferred to M5,
-since neither M3 target needs them. -/
+need a richer outcome type. -/
 
 structure Fn where
   name   : Ident

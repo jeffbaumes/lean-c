@@ -1,5 +1,6 @@
-import Examples.M1
-import Examples.M2
-import Examples.M3
-import Examples.M4
-import Examples.M5
+import Examples.SumTo
+import Examples.Arith
+import Examples.ArraySum
+import Examples.Copy
+import Examples.Hash
+import Examples.RingBuffer

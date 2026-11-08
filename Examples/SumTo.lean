@@ -1,23 +1,52 @@
 import LC
-import Examples.M1
 
 /-!
-# Milestone 2: `sum_to` is correct for every input
+# `sum_to`: a first loop, run and proved
+
+The program, a few interpreter runs turned into theorems (`Fn.call_sound` makes the
+interpreter a proof generator), and the full Hoare-logic proof that `sum_to(n)` returns
+exactly n(n+1)/2 for every 32-bit `n`. See docs/hoare-logic.md.
 -/
 
-open LC Examples.M1
+open LC
 
-namespace Examples.M2
+namespace Examples.SumTo
 
-/-- Naturals as LC values. A spec talks about mathematical numbers; these
-convert them into `BitVec`-carrying values. -/
-abbrev nu32 (k : Nat) : Val := .int .u32 (BitVec.ofNat 32 k)
-abbrev nu64 (k : Nat) : Val := .int .u64 (BitVec.ofNat 64 k)
+/-! ## The program
 
-@[simp] theorem u32_eq (k : Nat) : Val.u32 (k : Int) = nu32 k := by
-  simp [Val.u32, Val.ofInt, BitVec.ofInt_natCast]
-@[simp] theorem u64_eq (k : Nat) : Val.u64 (k : Int) = nu64 k := by
-  simp [Val.u64, Val.ofInt, BitVec.ofInt_natCast]
+```c
+uint64_t sum_to(uint32_t n) {
+  uint32_t i = 0; uint64_t s = 0;
+  while (i < n) { i = i + 1; s = s + (uint64_t)i; }
+  return s;
+}
+```
+-/
+def sumTo : Fn where
+  name   := "sum_to"
+  params := [("n", .int .u32)]
+  locals := [("i", .int .u32), ("s", .int .u64)]
+  body   := .block [
+    "i" ::= .u32 0,
+    "s" ::= .u64 0,
+    .while (v "i" <. v "n") (.block [
+      "i" ::= v "i" + .u32 1,
+      "s" ::= v "s" + .cast .u64 (v "i")
+    ])
+  ]
+  ret    := .int .u64
+  result := v "s"
+
+#guard sumTo.typeCheck
+#eval sumTo.call [.u32 10]                       -- ok 55u64
+#guard sumTo.call [.u32 10] = .ok (.u64 55)
+#guard sumTo.call [.u32 100000] (fuel := 1000000) = .ok (.u64 5000050000)  -- beyond 2³²: the u64 accumulator matters
+
+/-- A theorem about the *semantics*, not the interpreter: `sum_to(10)` returns 55.
+`decide` makes the kernel evaluate the interpreter; `call_sound` turns that into
+an `Exec` derivation. No `native_decide`, so the compiler is not trusted. -/
+theorem sumTo_10 : ∃ m', sumTo.Returns [.u32 10] [] (.u64 55) m' :=
+  Fn.call_sound (fuel := 100) (by decide)
 
 /-- The triangular numbers: the mathematical specification. -/
 def tri (k : Nat) : Nat := k * (k + 1) / 2
@@ -28,13 +57,13 @@ theorem tri_succ (k : Nat) : tri (k + 1) = tri k + (k + 1) := by
   omega
 
 /-- Loop invariant: the store holds `n`, a counter `i ≤ n`, and `s = tri i`.
-Stating the *whole* store exactly is heavy-handed but very predictable; M3's
-separation logic will let us say only what we need. -/
-def inv (n : Nat) (m : Mem) : Assertion := fun σ =>
+Stating the *whole* store exactly is heavy-handed but very predictable; the separation-logic
+examples state only what they need. -/
+def sumToInv (n : Nat) (m : Mem) : Assertion := fun σ =>
   ∃ i, i ≤ n ∧ σ = ⟨[("n", nu32 n), ("i", nu32 i), ("s", nu64 (tri i))], m⟩
 
 /-- Loop variant: `n - i` (iterations remaining). -/
-def var (n : Nat) : State → Nat := fun σ =>
+def sumToVar (n : Nat) : State → Nat := fun σ =>
   match σ.st.get "i" with
   | some (.int _ bv) => n - bv.toNat
   | _ => 0
@@ -44,7 +73,7 @@ def var (n : Nat) : State → Nat := fun σ =>
 The proof is one symbolic-execution pass:
 1. `suffices`: reduce `Fn.Returns` to a `wp` of the body (`Fn.returns_of_wp`).
 2. `simp only [wp_seq, wp_assign]` executes the two initialising assignments.
-3. `wp_while` with invariant `inv n` and variant `var n` leaves four goals:
+3. `wp_while` with invariant `sumToInv n` and variant `sumToVar n` leaves four goals:
    `init`, `cond` (the guard never has UB), `body` (preserve and decrease), and `exit`.
 4. Each goal is `simp` with the `LC/Logic/Eval.lean` lemmas, then a little arithmetic.
 -/
@@ -59,7 +88,7 @@ theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
   simp only [sumTo, Stmt.block, wp_seq, wp_assign]
   refine ⟨_, rfl, _, rfl, ?_⟩
   have hn32 : n % 2 ^ 32 = n := Nat.mod_eq_of_lt hn
-  refine wp_while (inv n m) (var n) ?cond ?body ?exit _ ⟨0, by omega, ?init⟩
+  refine wp_while (sumToInv n m) (sumToVar n) ?cond ?body ?exit _ ⟨0, by omega, ?init⟩
   case init => simp [tri]; constructor <;> rfl
   case cond =>
     rintro σ ⟨i, hi, rfl⟩
@@ -70,7 +99,7 @@ theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
     -- the guard was true, so i < n
     simp [nu32, intBinOp, BitVec.ult, hi32, hn32] at hc
     -- execute `i = i + 1; s = s + (uint64_t)i`
-    simp [nu32, nu64, intBinOp, Expr.u32, Val.u32, Val.ofInt, inv, var, hi32]
+    simp [nu32, nu64, intBinOp, Expr.u32, Val.u32, Val.ofInt, sumToInv, sumToVar, hi32]
     -- Pure arithmetic remains: the new counter is `i+1` (no u32 wrap, since
     -- i < n < 2³²), the new sum is `tri (i+1)`, and the variant decreased.
     have h1 : (i + 1) % 4294967296 = i + 1 := Nat.mod_eq_of_lt (by omega)
@@ -106,7 +135,7 @@ theorem sumTo_exact (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
   simp only [BitVec.toNat_ofNat, tri] at this ⊢
   exact Nat.mod_eq_of_lt this
 
-/-- And the payoff from M1's interpreter theorems: the interpreter can never report UB on `sum_to`. -/
+/-- And the payoff from the interpreter theorems: the interpreter can never report UB on `sum_to`. -/
 theorem sumTo_no_ub (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : Nat) :
     ∀ st₀, sumTo.initStore [.u32 n] = some st₀ → run fuel ⟨st₀, m⟩ sumTo.body ≠ .stuck := by
   intro st₀ h₀
@@ -115,4 +144,5 @@ theorem sumTo_no_ub (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : Nat) :
   intro hrun
   exact run_stuck_sound hrun _ hex
 
-end Examples.M2
+
+end Examples.SumTo

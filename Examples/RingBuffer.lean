@@ -1,8 +1,7 @@
 import LC
-import Examples.M3
 
 /-!
-# Milestone 5: a ring buffer, verified end to end
+# A ring buffer, verified end to end
 
 A fixed-capacity FIFO queue of bytes over caller-provided storage:
 
@@ -22,9 +21,9 @@ which can't overflow because `head < cap`. The proof below would fail for the `%
 unless its precondition required `cap ≤ 2³¹`.
 -/
 
-open LC Examples.M2 Examples.M3
+open LC
 
-namespace Examples.M5
+namespace Examples.RingBuffer
 
 def rbPush : Fn where
   name   := "rb_push"
@@ -131,14 +130,6 @@ theorem slot_lt {cap head k : Nat} (hh : head < cap) (hk : k < cap) : slot cap h
 theorem slot_inj {cap head j k : Nat} (hj : j < cap) (hk : k < cap)
     (e : slot cap head j = slot cap head k) : j = k := by
   unfold slot at e; split at e <;> split at e <;> omega
-
-theorem bv_sub {w a b : Nat} (hb : b ≤ a) (ha : a < 2 ^ w) :
-    BitVec.ofNat w a - BitVec.ofNat w b = BitVec.ofNat w (a - b) := by
-  apply BitVec.eq_of_toNat_eq
-  simp only [BitVec.toNat_sub, BitVec.toNat_ofNat]
-  rw [Nat.mod_eq_of_lt (by omega : b < 2 ^ w), Nat.mod_eq_of_lt ha]
-  have : 2 ^ w - b + a = (a - b) + 2 ^ w := by omega
-  rw [this, Nat.add_mod_right]
 
 /-! ## `rb_push` is correct -/
 
@@ -367,4 +358,4 @@ theorem rbPop_correct (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List 
       refine tail _ (by simp) (by simp) ?_
       simp [slot, show head + 1 < cap by omega]
 
-end Examples.M5
+end Examples.RingBuffer

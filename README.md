@@ -1,21 +1,23 @@
 # lean-c
 
-A small, C-like imperative language (**LC**) deeply embedded in Lean 4, with a formal semantics, a program logic, and (eventually) a code generator that prints readable C99/C11. It's modelled on Low\*/KaRaMeL from the F\* ecosystem. The shipped artifact will be plain C; Lean is the proof layer only.
+A small, C-like imperative language (**LC**) deeply embedded in Lean 4. It has a formal semantics, a program logic, and a code generator that prints readable, freestanding C11. It's modelled on Low\*/KaRaMeL from the F\* ecosystem. The shipped artifact is plain C; Lean is the proof layer only.
 
-This is a learning project, built milestone by milestone with a walkthrough for each.
+No `sorry`, no `native_decide`. MIT licensed.
 
-## Status
+## What's here
 
-| Milestone | What | State |
+| Area | Status | Guide |
 |---|---|---|
-| M1 | Syntax, big-step semantics, interpreter proved sound (ok *and* stuck), type checker | ✅ [walkthrough](docs/m1-walkthrough.md) |
-| M2 | Hoare logic (total correctness); `sum_to` proved correct for every `u32` input | ✅ [walkthrough](docs/m2-walkthrough.md) |
-| M3 | Heap: pointers, arrays, bounds, separation logic with frame rule; array sum and `memcpy` proved | ✅ [walkthrough](docs/m3-walkthrough.md) |
-| M4 | C printer (promotion-safe, freestanding C11); differential testing against the interpreter under UBSan/ASan and -O2 | ✅ [walkthrough](docs/m4-walkthrough.md) |
-| M5 | Ring buffer (push/pop) proved against a queue model; specs compose; C tested against the model | ✅ [walkthrough](docs/m5-walkthrough.md) |
-| M6 | (stretch) Prove code generation correct against a Lean Clight semantics | planned |
+| Syntax, big-step semantics (UB = stuck), interpreter proved sound for both `ok` and `stuck`, determinism, type checker and type preservation | proved | [docs/semantics.md](docs/semantics.md) |
+| Hoare logic (total correctness), defined from the semantics | proved | [docs/hoare-logic.md](docs/hoare-logic.md) |
+| Heap: pointers `(block, offset)`, typed-cell arrays, bounds. Separation logic with the frame rule | proved | [docs/separation-logic.md](docs/separation-logic.md) |
+| C printer (promotion-safe, freestanding C11), differential testing against the interpreter under UBSan/ASan and `-O2` | printer tested, not proved | [docs/c-backend.md](docs/c-backend.md) |
+| Ring buffer proved against a queue model; the specs compose | proved, and C tested against the model | [docs/ring-buffer.md](docs/ring-buffer.md) |
 
-No `sorry`, no `native_decide`.
+**Verified programs** ([Examples/](Examples)):
+- `sum_to`, array sum and `copy_u8` (memcpy for separate buffers);
+- ring-buffer push/pop;
+- interpreter-checked `gcd`, `popcount` and FNV-1a.
 
 ## Build
 
@@ -25,21 +27,23 @@ Requires [elan](https://github.com/leanprover/elan). The toolchain is pinned in 
 lake build
 ```
 
-Exercises: `lake env lean exercises/core/M1_Exercises.lean`
-
-Emit C and run the differential tester (needs a system C compiler; override with `LC_CC`):
+Emit C and run the testers. They need a system C compiler; override it with `LC_CC`.
 
 ```bash
 lake exe lc emit generated/examples.c
-lake exe lc difftest 200 1
-lake exe lc ringtest 200 1
+nice -n 19 lake exe lc difftest 100 1
+nice -n 19 lake exe lc ringtest 200 1
 ```
 
 ## Layout
 
-- `LC/`: the language. `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Logic/{Eval,Hoare,Sep}`, `Emit/C`
-- `Examples/`: programs and proofs per milestone
-- `Tools/Main.lean`: the `lc` executable (C emission, differential testing)
-- `generated/examples.c`: the C printed for every example
-- `docs/`: [landscape survey](docs/phase1-landscape.md), [design decisions](docs/phase2-design.md), [assignments](docs/assignments.md), and milestone walkthroughs
-- `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`
+- `LC/`: the language and its metatheory.
+  - `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Spec`.
+  - `Logic/{Eval,Hoare,Sep}`: the program logics.
+  - `Emit/C`: the C printer.
+- `Examples/`: verified (or interpreter-checked) programs, one per file.
+- `Tests/`: semantics tests (what is UB), printer stress functions, the difftest suite.
+- `Tools/Main.lean`: the `lc` executable (C emission, differential and model-based testing).
+- `generated/examples.c`: the C printed for every example.
+- `docs/`: topic guides (above), plus the original [landscape survey](docs/landscape.md), [design decisions](docs/design.md) and [learning assignments](docs/assignments.md).
+- `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`, named by topic. Run with `lake env lean exercises/core/Semantics.lean`.

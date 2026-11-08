@@ -2,7 +2,7 @@ import LC.Logic.Hoare
 import LC.Logic.Eval
 
 /-!
-# Separation logic for LC (Milestone 3)
+# Separation logic for LC
 
 ## Heaps and assertions
 
@@ -308,7 +308,7 @@ theorem swp_while {c : Expr} {b : Stmt} {Q : SProp}
 
 The rules above take the computed value as an argument. These variants put it under
 an `∃`, so after `apply`, `simp` can compute the expression and fill it in, just
-as in M2's `wp_assign`. -/
+as with `wp_assign` in Hoare.lean. -/
 
 theorem swp_assign' {x : Ident} {e : Expr} {Q : SProp} {st : Store} {h : Heap}
     (hw : ∃ v, e.eval st = some v ∧ Q (st.set x v) h) : swp (.assign x e) Q st h :=

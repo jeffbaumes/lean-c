@@ -1,4 +1,6 @@
-# Phase 2: Design decisions
+# Design decisions
+
+> **Historical note.** This is the original design document. It refers to a milestone plan (M1–M6) that has since been retired; the code is now organised by topic. See the README for current status.
 
 *Drafted 2026-11-08 against Lean v4.35.0. Every section gives the options and their trade-offs, then a recommendation. Where a choice has a well-known precedent, it is cited. The list of decisions I need from you is in §9.*
 
