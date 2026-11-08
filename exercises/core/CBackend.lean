@@ -3,7 +3,7 @@ C-backend exercises. Each one takes 15 minutes or less.
 Run:  lake env lean exercises/core/CBackend.lean      (after `lake build`)
 Difftest: lake exe lc difftest [cases] [seed] [function]
 
-Read docs/c-backend.md, LC/Emit/C.lean and generated/examples.c first.
+Read docs/c-backend.md, LC/Emit/C.lean and generated/lc_examples.c first.
 Solutions: exercises/solutions/CBackend.lean.
 -/
 import LC

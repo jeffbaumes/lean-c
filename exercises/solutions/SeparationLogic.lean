@@ -33,13 +33,13 @@ theorem star_assoc {P Q R : HProp} {h : Heap} : ((P ∗ Q) ∗ R) h → (P ∗ (
     hp, h2, h3, d23, rfl, hq, hr⟩
 
 /-! ## Sep.4 the frame, concretely: copy doesn't touch any cell outside dst/src -/
-theorem copy_preserves (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
+theorem copy_preserves (P : Program) (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
     (hd : ds.length = ss.length) (h hf : Heap) (m : Mem)
     (hpre : (array dst (u8s ds) ∗ array src (u8s ss)) h) (d : h.Disjoint hf)
     (hm : m.heap = h.union hf) (a : Addr) (w : Val) (ha : hf a = some w) :
-    ∃ m', copy.Returns [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
+    ∃ m', copy.Returns P [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
       m'.read a.1 a.2 = some w := by
-  obtain ⟨m', h', hret, d', hm', -⟩ := copy_correct dst src ss ds hlen hd h hf m hpre d hm
+  obtain ⟨m', h', hret, d', hm', -⟩ := copy_correct P dst src ss ds hlen hd h hf m hpre d hm
   refine ⟨m', hret, ?_⟩
   show m'.heap a = some w
   rw [hm']; exact Heap.union_get_right d' ha

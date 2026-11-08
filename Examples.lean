@@ -4,3 +4,5 @@ import Examples.ArraySum
 import Examples.Copy
 import Examples.Hash
 import Examples.RingBuffer
+import Examples.Search
+import Examples.ParseU32

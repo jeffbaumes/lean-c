@@ -31,6 +31,18 @@ theorem bv_sub {w a b : Nat} (hb : b ≤ a) (ha : a < 2 ^ w) :
   have : 2 ^ w - b + a = (a - b) + 2 ^ w := by omega
   rw [this, Nat.add_mod_right]
 
+/-- Unsigned division of in-range values is exact. -/
+theorem bv_udiv {w a b : Nat} (ha : a < 2 ^ w) (hb : b < 2 ^ w) :
+    BitVec.ofNat w a / BitVec.ofNat w b = BitVec.ofNat w (a / b) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_udiv, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]
+  rw [Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt (Nat.div_le_self a b) ha)]
+
+/-- Multiplication wraps, exactly like `ofNat` of the product. -/
+theorem bv_mul (w a b : Nat) : BitVec.ofNat w a * BitVec.ofNat w b = BitVec.ofNat w (a * b) := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_mul, Nat.mul_mod]
+
 /-- The usual loop variant `n - i`, reading the counter from local `"i"`. -/
 def counterVariant (n : Nat) : Store → Heap → Nat := fun st _ =>
   match st.get "i" with

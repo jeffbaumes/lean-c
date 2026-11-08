@@ -64,15 +64,15 @@ def sumInv (p : Ptr) (xs : List (BitVec 32)) (h₀ : Heap) : SProp := fun st h =
 `h` is the fragment `p[0..n)` (precondition `array p xs h`), and `hf` is *everything
 else* in memory, which the function provably doesn't touch. Memory is unchanged
 afterwards. -/
-theorem arraySum_correct (p : Ptr) (xs : List (BitVec 32)) (hlen : xs.length < 2 ^ 32)
+theorem arraySum_correct (P : Program) (p : Ptr) (xs : List (BitVec 32)) (hlen : xs.length < 2 ^ 32)
     (h hf : Heap) (m : Mem) (ha : array p (u32s xs) h) (d : h.Disjoint hf)
     (hm : m.heap = h.union hf) :
-    ∃ m', arraySum.Returns [.ptr .u32 p, .u32 xs.length] m (.u64 (psum xs xs.length)) m' ∧
+    ∃ m', arraySum.Returns P [.ptr .u32 p, .u32 xs.length] m (.u64 (psum xs xs.length)) m' ∧
       m'.heap = m.heap := by
   have hinit : arraySum.initStore [.ptr .u32 p, .u32 xs.length] =
       some [("p", .ptr .u32 p), ("n", nu32 xs.length)] := by
     simp [Fn.initStore, arraySum, Store.empty]; constructor <;> rfl
-  suffices hbody : swp arraySum.body (fun st h' => ∃ v, arraySum.result.eval st = some v ∧
+  suffices hbody : swp P arraySum.body (fun st h' => ∃ v, arraySum.result.eval st = some v ∧
       v.ty = arraySum.ret ∧ (v = .u64 (psum xs xs.length) ∧ h' = h)) _ h by
     obtain ⟨v, m', h', hret, -, hm', rfl, rfl⟩ := Fn.returns_of_swp
       (post := fun v h' => v = .u64 (psum xs xs.length) ∧ h' = h) hinit hbody d hm

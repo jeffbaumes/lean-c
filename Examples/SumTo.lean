@@ -45,7 +45,7 @@ def sumTo : Fn where
 /-- A theorem about the *semantics*, not the interpreter: `sum_to(10)` returns 55.
 `decide` makes the kernel evaluate the interpreter; `call_sound` turns that into
 an `Exec` derivation. No `native_decide`, so the compiler is not trusted. -/
-theorem sumTo_10 : ∃ m', sumTo.Returns [.u32 10] [] (.u64 55) m' :=
+theorem sumTo_10 : ∃ m', sumTo.Returns [] [.u32 10] [] (.u64 55) m' :=
   Fn.call_sound (fuel := 100) (by decide)
 
 /-- The triangular numbers: the mathematical specification. -/
@@ -77,9 +77,9 @@ The proof is one symbolic-execution pass:
    `init`, `cond` (the guard never has UB), `body` (preserve and decrease), and `exit`.
 4. Each goal is `simp` with the `LC/Logic/Eval.lean` lemmas, then a little arithmetic.
 -/
-theorem sumTo_correct (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
-    sumTo.Returns [.u32 n] m (.u64 (tri n)) m := by
-  suffices key : wp sumTo.body (fun σ => ∃ v, sumTo.result.eval σ.st = some v ∧
+theorem sumTo_correct (P : Program) (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
+    sumTo.Returns P [.u32 n] m (.u64 (tri n)) m := by
+  suffices key : wp P sumTo.body (fun σ => ∃ v, sumTo.result.eval σ.st = some v ∧
       v.ty = sumTo.ret ∧ (v = .u64 (tri n) ∧ σ.mem = m)) ⟨[("n", nu32 n)], m⟩ by
     obtain ⟨v, m', hv, rfl, rfl⟩ := Fn.returns_of_wp (f := sumTo) (args := [.u32 n])
       (st₀ := [("n", nu32 n)]) (m := m)
@@ -128,21 +128,21 @@ theorem tri_lt (n : Nat) (hn : n < 2 ^ 32) : tri n < 2 ^ 64 := by
   have := Nat.div_le_self (n * (n + 1)) 2
   unfold tri; omega
 
-theorem sumTo_exact (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
-    ∃ bv : BitVec 64, sumTo.Returns [.u32 n] m (.int .u64 bv) m ∧ bv.toNat = n * (n + 1) / 2 := by
-  refine ⟨BitVec.ofNat 64 (tri n), by simpa using sumTo_correct n hn m, ?_⟩
+theorem sumTo_exact (P : Program) (n : Nat) (hn : n < 2 ^ 32) (m : Mem) :
+    ∃ bv : BitVec 64, sumTo.Returns P [.u32 n] m (.int .u64 bv) m ∧ bv.toNat = n * (n + 1) / 2 := by
+  refine ⟨BitVec.ofNat 64 (tri n), by simpa using sumTo_correct P n hn m, ?_⟩
   have := tri_lt n hn
   simp only [BitVec.toNat_ofNat, tri] at this ⊢
   exact Nat.mod_eq_of_lt this
 
 /-- And the payoff from the interpreter theorems: the interpreter can never report UB on `sum_to`. -/
-theorem sumTo_no_ub (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : Nat) :
-    ∀ st₀, sumTo.initStore [.u32 n] = some st₀ → run fuel ⟨st₀, m⟩ sumTo.body ≠ .stuck := by
+theorem sumTo_no_ub (P : Program) (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : Nat) :
+    ∀ st₀, sumTo.initStore [.u32 n] = some st₀ → run P fuel ⟨st₀, m⟩ sumTo.body ≠ .stuck := by
   intro st₀ h₀
-  obtain ⟨st₀', st₁, h₀', hex, -⟩ := sumTo_correct n hn m
+  obtain ⟨st₀', o, σ₁, h₀', hex, -⟩ := sumTo_correct P n hn m
   rw [h₀] at h₀'; cases h₀'
   intro hrun
-  exact run_stuck_sound hrun _ hex
+  exact run_stuck_sound hrun _ _ hex
 
 
 end Examples.SumTo

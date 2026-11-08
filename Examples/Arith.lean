@@ -28,7 +28,7 @@ def gcd : Fn where
 #guard gcd.call [.u32 1071, .u32 462] = .ok (.u32 21)
 #guard gcd.call [.u32 0, .u32 0] = .ok (.u32 0)
 
-theorem gcd_1071_462 : ∃ m', gcd.Returns [.u32 1071, .u32 462] [] (.u32 21) m' :=
+theorem gcd_1071_462 : ∃ m', gcd.Returns [] [.u32 1071, .u32 462] [] (.u32 21) m' :=
   Fn.call_sound (fuel := 100) (by decide)
 
 /-! ## Popcount: shifts and masks on unsigned values -/

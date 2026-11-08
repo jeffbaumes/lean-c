@@ -11,7 +11,7 @@ a stuck program. -/
 
 /-! ## Hoare.2 swap through a temporary: pure symbolic execution -/
 example (x y z : Nat) :
-    wp (.block ["t" ::= v "a", "a" ::= v "b", "b" ::= v "t"])
+    wp P (.block ["t" ::= v "a", "a" ::= v "b", "b" ::= v "t"])
       (fun σ => σ.st.get "a" = some (nu32 y) ∧ σ.st.get "b" = some (nu32 x))
       ⟨[("a", nu32 x), ("b", nu32 y), ("t", nu32 z)], []⟩ := by
   simp [Stmt.block]
@@ -22,9 +22,9 @@ def maxFn : Fn where
   body := .ite (v "a" <. v "b") ("r" ::= v "b") ("r" ::= v "a")
   ret := .int .u32; result := v "r"
 
-theorem maxFn_correct (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
-    maxFn.Returns [.u32 a, .u32 b] [] (.u32 ((max a b : Nat) : Int)) [] := by
-  suffices key : wp maxFn.body (fun σ => ∃ w, maxFn.result.eval σ.st = some w ∧
+theorem maxFn_correct (P : Program) (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
+    maxFn.Returns P [.u32 a, .u32 b] [] (.u32 ((max a b : Nat) : Int)) [] := by
+  suffices key : wp P maxFn.body (fun σ => ∃ w, maxFn.result.eval σ.st = some w ∧
       w.ty = maxFn.ret ∧ (w = .u32 ((max a b : Nat) : Int) ∧ σ.mem = []))
       ⟨[("a", nu32 a), ("b", nu32 b)], []⟩ by
     obtain ⟨w, m', hw, rfl, rfl⟩ := Fn.returns_of_wp (f := maxFn) (args := [.u32 a, .u32 b])
@@ -38,16 +38,19 @@ theorem maxFn_correct (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) :
   · right; refine ⟨by omega, ?_⟩; simp [Nat.max_eq_left (Nat.le_of_not_lt h)]; rfl
 
 /-! ## Hoare.4 total correctness rejects `while (true) {}` -/
-theorem spin_no_exec (σ σ' : State) : ¬ Exec σ (.while (.lit (.bool true)) .skip) σ' := by
+theorem spin_no_exec (P : Program) (σ σ' : State) (o : Outcome) :
+    ¬ Exec P σ (.while (.lit (.bool true)) .skip) o σ' := by
   intro h
   generalize hs : Stmt.while (.lit (.bool true)) .skip = s at h
   induction h with
   | whileTrue _ _ _ _ ihw => exact ihw hs
+  | whileBreak _ hb => cases hs; cases hb
+  | whileRet _ hb => cases hs; cases hb
   | whileFalse hc => cases hs; simp at hc
   | _ => cases hs
 
 theorem spin_no_triple :
-    ¬ Triple (fun _ => True) (.while (.lit (.bool true)) .skip) (fun _ => True) := by
+    ¬ Triple [] (fun _ => True) (.while (.lit (.bool true)) .skip) (fun _ => True) := by
   intro h
   obtain ⟨σ', hex, -⟩ := h ⟨[], []⟩ trivial
-  exact spin_no_exec _ _ hex
+  exact spin_no_exec _ _ _ _ hex

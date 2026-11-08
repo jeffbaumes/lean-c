@@ -41,27 +41,27 @@ def isqrtBad : Fn where
 
 /-! ## Sem.3 (🔧 10 min): a program equivalence by inversion
 Hint: `constructor`; in one direction `cases h`, and look at what each rule demands. -/
-theorem while_false_iff (σ σ' : State) (s : Stmt) :
-    Exec σ (.while (.lit (.bool false)) s) σ' ↔ σ' = σ := by
+theorem while_false_iff (P : Program) (σ σ' : State) (s : Stmt) (o : Outcome) :
+    Exec P σ (.while (.lit (.bool false)) s) o σ' ↔ o = .normal ∧ σ' = σ := by
   sorry
 
 /-! ## Sem.4 (🔧 5 min) -/
-theorem skip_seq_iff (σ σ' : State) (s : Stmt) :
-    Exec σ (.seq .skip s) σ' ↔ Exec σ s σ' := by
+theorem skip_seq_iff (P : Program) (σ σ' : State) (s : Stmt) (o : Outcome) :
+    Exec P σ (.seq .skip s) o σ' ↔ Exec P σ s o σ' := by
   sorry
 
 /-! ## Sem.5 (🔧 15 min): more fuel never hurts
 Hint: induction on `n` generalizing `m σ σ' s`. In the `succ` case, write `m` as `k + 1`,
 then follow the structure of `run_sound` in LC/Interp.lean. -/
-theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
-    run n σ s = .ok σ' → run m σ s = .ok σ' := by
+theorem run_mono {P : Program} {n m : Nat} {σ : State} {s : Stmt} {r : Outcome × State}
+    (hle : n ≤ m) : run P n σ s = .ok r → run P m σ s = .ok r := by
   sorry
 
 /-! ## Sem.6 (🔧 15 min, stretch): the interpreter is complete
 Every terminating execution is found with enough fuel. Hint: induction on `h`; for
 `seq` and `whileTrue`, use `max n₁ n₂ + 1` fuel and `run_mono` (pass `(m := …)` explicitly). -/
-theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
-    ∃ n, run n σ s = .ok σ' := by
+theorem run_complete {P : Program} {σ σ' : State} {s : Stmt} {o : Outcome}
+    (h : Exec P σ s o σ') : ∃ n, run P n σ s = .ok (o, σ') := by
   sorry
 
 /-! ## Sem.7 (✍️ 5 min)

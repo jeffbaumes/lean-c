@@ -20,7 +20,7 @@
   - `load` and `store` require the cell to exist (bounds and liveness) and the value to have the pointer's element type. Otherwise the program is stuck, so an out-of-bounds access is UB exactly like signed overflow.
 - **Type checker:** pointer *literals* are rejected (only parameters hold pointers, so addresses can't be forged). It also checks `load`/`store` element types.
 - **Ported:** interpreter soundness, determinism, stuck-soundness, type preservation, and all earlier proofs and exercises. The `sum_to` theorems now hold for *any* memory (`sumTo.Returns [.u32 n] m (.u64 (tri n)) m`).
-- **Deferred to the ring buffer:** `break` and early `return`. They need an outcome type in `Exec`, and neither the separation logic target needs them. This is a deviation from the design doc's the separation logic scope.
+- `break`, early `return` and function calls came later. They're covered in [docs/programs.md](programs.md).
 
 ## [LC/Logic/Sep.lean](../LC/Logic/Sep.lean): the separation logic
 

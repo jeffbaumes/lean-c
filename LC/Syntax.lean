@@ -165,13 +165,19 @@ inductive Stmt
   | load   (x : Ident) (p : Expr) (i : Expr)
   /-- `p[i] = e;` -/
   | store  (p : Expr) (i : Expr) (e : Expr)
+  /-- `break;` (only inside a loop; the type checker enforces this) -/
+  | brk
+  /-- `return e;` (`return;` when `e` is the unit literal) -/
+  | ret    (e : Expr)
+  /-- `x = f(args);`, or just `f(args);` when `x` is `none`. Arguments are pure
+  expressions, so C's unspecified argument evaluation order can't matter. -/
+  | call   (x : Option Ident) (f : Ident) (args : List Expr)
 deriving DecidableEq, Repr, Inhabited
 
 /-! ## Functions
 
-A function is: typed parameters, typed locals, a body, and a result expression
-evaluated after the body (one `return` at the end). Early `return` and `break`
-need a richer outcome type. -/
+A function is: typed parameters, typed locals, a body, and a result expression.
+The body may `return e` early; if it falls off the end, `result` is returned. -/
 
 structure Fn where
   name   : Ident
@@ -181,5 +187,10 @@ structure Fn where
   ret    : Ty
   result : Expr
 deriving Repr, Inhabited
+
+/-- A program: the functions that `call` statements can refer to, by name. -/
+abbrev Program := List Fn
+
+def Program.find? (P : Program) (f : Ident) : Option Fn := List.find? (·.name == f) P
 
 end LC

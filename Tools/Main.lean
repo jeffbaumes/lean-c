@@ -5,7 +5,7 @@ import Tests
 # `lake exe lc`: emit C, and differentially test it against the interpreter
 
 ```
-lake exe lc emit [out.c]               # print every example as one C translation unit
+lake exe lc emit [dir/name]            # write name.h + name.c for every example
 lake exe lc difftest [cases] [seed] [fn]   # random inputs → interpreter vs. compiled C
 lake exe lc ringtest [scripts] [seed]      # ring buffer: model vs. interpreter vs. compiled C
 ```
@@ -86,9 +86,14 @@ def genCase (f : Fn) (r : Rng) : Case × Rng := Id.run do
         let (len, r2) := r.below 8; r := r2
         let len := len + 1
         let mut cs := []
+        let (digits, r5) := r.below 3; r := r5
         for _ in [0:len] do
-          let (v, r3) := genInt t r; r := r3
-          cs := cs ++ [v]
+          if t == .u8 && digits == 0 then
+            let (dgt, r3) := r.below 10; r := r3
+            cs := cs ++ [Val.ofInt .u8 (48 + dgt)]
+          else
+            let (v, r3) := genInt t r; r := r3
+            cs := cs ++ [v]
         let (z, r4) := r.below 3; r := r4
         let off := if z == 0 then (r.below len).1 else 0
         let b := blocks.length
@@ -153,8 +158,9 @@ def cCase (f : Fn) (k : Nat) (c : Case) (isOk : Bool) : Except String String := 
   let guard := if isOk then s!"sel < 0 || sel == {k}" else s!"sel == {k}"
   return s!"  if ({guard}) \{\n{String.join decls}{callStmt}{String.join prints}    printf(\"\\n\");\n{frees}  }\n"
 
-def harness (f : Fn) (okCases stuckCases : List (Nat × Case)) : Except String String := do
-  let tu ← cTranslationUnit [f]
+def harness (f : Fn) (P : Program) (okCases stuckCases : List (Nat × Case)) :
+    Except String String := do
+  let tu ← cTranslationUnit (if P.any (·.name == f.name) then P else f :: P)
   let body ← (okCases.map (·, true) ++ stuckCases.map (·, false)).mapM fun ((k, c), ok) =>
     cCase f k c ok
   return tu ++ "\n#include <stdio.h>\n#include <stdlib.h>\n\n" ++
@@ -183,7 +189,7 @@ structure Stats where
 
 def sanFlags : List String := ["-O1", "-g", "-fsanitize=undefined,address", "-fno-sanitize-recover=all"]
 
-def testFn (dir : String) (f : Fn) (n : Nat) (r : Rng) : IO (Stats × Rng) := do
+def testFn (dir : String) (f : Fn) (P : Program) (n : Nat) (r : Rng) : IO (Stats × Rng) := do
   let mut r := r
   let mut st : Stats := {}
   let mut okCases : List (Nat × Case) := []
@@ -191,7 +197,7 @@ def testFn (dir : String) (f : Fn) (n : Nat) (r : Rng) : IO (Stats × Rng) := do
   let mut expected : List String := []
   for k in [0:n] do
     let (c, r') := genCase f r; r := r'
-    match f.callMem c.args c.mem 20000 with
+    match f.callMem c.args c.mem 20000 P with
     | .ok (v, m') =>
       st := { st with ok := st.ok + 1 }
       okCases := okCases ++ [(k, c)]
@@ -199,7 +205,7 @@ def testFn (dir : String) (f : Fn) (n : Nat) (r : Rng) : IO (Stats × Rng) := do
     | .stuck => st := { st with stuck := st.stuck + 1 }; stuckCases := stuckCases ++ [(k, c)]
     | .outOfFuel => st := { st with fuel := st.fuel + 1 }
   let src := s!"{dir}/{f.name}.c"
-  match harness f okCases stuckCases with
+  match harness f P okCases stuckCases with
   | .error e => return ({ st with mismatches := [s!"printer error: {e}"] }, r)
   | .ok code => IO.FS.writeFile src code
   for (tag, flags) in [("san", sanFlags), ("O2", ["-O2"])] do
@@ -234,8 +240,8 @@ def difftest (n seed : Nat) (only : Option String) : IO UInt32 := do
   IO.println s!"difftest: {n} random cases per function, seed {seed}"
   IO.println s!"{"function".pushn ' ' 10} ok  stuck(flagged)  fuel  result"
   let fns := Tests.difftestFns
-  for f in fns.filter (fun f => only.all (· == f.name)) do
-    let (st, r') ← testFn dir f n r; r := r'
+  for (f, P) in fns.filter (fun (f, _) => only.all (· == f.name)) do
+    let (st, r') ← testFn dir f P n r; r := r'
     let verdict := if st.mismatches.isEmpty then "PASS" else "FAIL"
     if !st.mismatches.isEmpty then failures := failures + 1
     IO.println s!"{f.name.pushn ' ' (18 - f.name.length)} {st.ok}  {st.stuck}({st.flagged}/{min st.stuck 20})  {st.fuel}  {verdict}"
@@ -343,13 +349,15 @@ def ringtest (nScripts seed : Nat) : IO UInt32 := do
 def main (args : List String) : IO UInt32 := do
   match args with
   | "emit" :: rest =>
-    match cTranslationUnit Tests.difftestFns with
-    | .error e => IO.eprintln e; return 1
-    | .ok code =>
-      match rest with
-      | [path] => IO.FS.writeFile path code; IO.println s!"wrote {path}"
-      | _ => IO.print code
+    -- `lc emit DIR/NAME` writes NAME.h (prototypes) and NAME.c (definitions)
+    let base := rest[0]?.getD "generated/lc_examples"
+    let hname := (base.splitOn "/").getLast!
+    match cHeader (hname ++ "_h") Tests.allFns, cSource (hname ++ ".h") Tests.allFns with
+    | .ok hdr, .ok src =>
+      IO.FS.writeFile (base ++ ".h") hdr; IO.FS.writeFile (base ++ ".c") src
+      IO.println s!"wrote {base}.h and {base}.c"
       return 0
+    | .error e, _ | _, .error e => IO.eprintln e; return 1
   | "difftest" :: rest =>
     let n := (rest[0]? >>= String.toNat?).getD 200
     let seed := (rest[1]? >>= String.toNat?).getD 1
@@ -358,4 +366,4 @@ def main (args : List String) : IO UInt32 := do
     let n := (rest[0]? >>= String.toNat?).getD 200
     let seed := (rest[1]? >>= String.toNat?).getD 1
     ringtest n seed
-  | _ => IO.println "usage: lc emit [out.c] | lc difftest [cases] [seed] [function] | lc ringtest [scripts] [seed]"; return 2
+  | _ => IO.println "usage: lc emit [dir/name] | lc difftest [cases] [seed] [function] | lc ringtest [scripts] [seed]"; return 2

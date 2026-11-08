@@ -133,10 +133,10 @@ theorem slot_inj {cap head j k : Nat} (hj : j < cap) (hk : k < cap)
 
 /-! ## `rb_push` is correct -/
 
-theorem rbPush_correct (b s : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List (BitVec 8))
+theorem rbPush_correct (P : Program) (b s : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List (BitVec 8))
     (x : BitVec 8) (h hf : Heap) (m : Mem)
     (hrb : rb b s cap q h) (d : h.Disjoint hf) (hm : m.heap = h.union hf) :
-    ∃ v m' h', rbPush.Returns [.ptr .u8 b, .ptr .u32 s, .u32 cap, .int .u8 x] m v m' ∧
+    ∃ v m' h', rbPush.Returns P [.ptr .u8 b, .ptr .u32 s, .u32 cap, .int .u8 x] m v m' ∧
       h'.Disjoint hf ∧ m'.heap = h'.union hf ∧
       (if q.length < cap then v = .bool true ∧ rb b s cap (q ++ [x]) h'
        else v = .bool false ∧ rb b s cap q h') := by
@@ -238,10 +238,10 @@ theorem slot_succ {cap head k : Nat} (hh : head < cap) (hk : k + 1 < cap) :
     slot cap (slot cap head 1) k = slot cap head (k + 1) := by
   unfold slot; split <;> split <;> split <;> omega
 
-theorem rbPop_correct (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List (BitVec 8))
+theorem rbPop_correct (P : Program) (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List (BitVec 8))
     (w : Val) (h hf : Heap) (m : Mem)
     (hpre : (rb b s cap q ∗ array o [w]) h) (d : h.Disjoint hf) (hm : m.heap = h.union hf) :
-    ∃ v m' h', rbPop.Returns [.ptr .u8 b, .ptr .u32 s, .u32 cap, .ptr .u8 o] m v m' ∧
+    ∃ v m' h', rbPop.Returns P [.ptr .u8 b, .ptr .u32 s, .u32 cap, .ptr .u8 o] m v m' ∧
       h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ popPost b s o cap q w v h' := by
   have hinit : rbPop.initStore [.ptr .u8 b, .ptr .u32 s, .u32 cap, .ptr .u8 o] =
       some [("buf", .ptr .u8 b), ("st", .ptr .u32 s), ("cap", nu32 cap), ("out", .ptr .u8 o)] := by
@@ -299,7 +299,7 @@ theorem rbPop_correct (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (q : List 
     have tail : ∀ st : Store, st.get "st" = some (.ptr .u32 s) →
         st.get "len" = some (nu32 (q'.length + 1)) →
         st.get "head" = some (nu32 (slot cap head 1)) →
-        swp (.seq (.store (v "st") (.u32 0) (v "head"))
+        swp P (.seq (.store (v "st") (.u32 0) (v "head"))
               (.seq (.store (v "st") (.u32 1) (v "len" - .u32 1)) ("ok" ::= .tt)))
           (fun st h' => ∃ v, rbPop.result.eval st = some v ∧ v.ty = rbPop.ret ∧
             popPost b s o cap (a :: q') w v h')

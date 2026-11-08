@@ -6,7 +6,7 @@ This is the first artifact the project was meant to produce: a small, useful pie
 
 ## The C
 
-[generated/examples.c](../generated/examples.c) is printed from [Examples/RingBuffer.lean](../Examples/RingBuffer.lean):
+[generated/lc_examples.c](../generated/lc_examples.c) is printed from [Examples/RingBuffer.lean](../Examples/RingBuffer.lean):
 
 ```c
 bool rb_push(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t x) {
@@ -87,7 +87,7 @@ The oracle here is the **specification**, not the interpreter. That makes it a t
 
 ## Proved · tested · trusted
 
-For the claim *"`rb_push` in generated/examples.c, compiled with clang, implements a bounded FIFO push"*:
+For the claim *"`rb_push` in generated/lc_examples.c, compiled with clang, implements a bounded FIFO push"*:
 
 | Component | Status |
 |---|---|
@@ -102,7 +102,7 @@ For the claim *"`rb_push` in generated/examples.c, compiled with clang, implemen
 
 ## What's missing, and why
 
-- **`break` and early `return`:** deferred a second time. Neither the ring buffer nor any example needs them, and adding them means changing `Exec`'s type and re-proving everything. The right moment is when a target needs them, for example a parser that bails out on bad input.
+- **`break` and early `return`:** since added; see [docs/programs.md](programs.md).
 - **Structs:** the `st` array works but reads worse than `rb->head`. Adding structs means struct types and field access in the syntax, plus a layout story for any future byte-level C semantics. It's the most valuable language addition left.
 - **`sep_simp`:** see above.
 

@@ -193,44 +193,31 @@ def Expr.evalAddr (st : Store) (p i : Expr) : Option (IntTy × Nat × Nat) :=
   | some (.ptr t ⟨b, off⟩), some (.int ⟨false, .w32⟩ k) => some (t, b, off + k.toNat)
   | _, _ => none
 
-/-! ## Statement execution (big-step) -/
+/-! ## Statement execution (big-step)
 
-/-- `Exec σ s σ'`: running `s` from state `σ` terminates normally in state `σ'`.
-There is deliberately no rule for diverging or stuck executions. -/
-inductive Exec : State → Stmt → State → Prop
-  | skip {σ} :
-      Exec σ .skip σ
-  | assign {st m x e v} :
-      e.eval st = some v →
-      Exec ⟨st, m⟩ (.assign x e) ⟨st.set x v, m⟩
-  | seq {σ σ₁ σ₂ s₁ s₂} :
-      Exec σ s₁ σ₁ → Exec σ₁ s₂ σ₂ →
-      Exec σ (.seq s₁ s₂) σ₂
-  | iteTrue {σ σ' c s₁ s₂} :
-      c.eval σ.st = some (.bool true) → Exec σ s₁ σ' →
-      Exec σ (.ite c s₁ s₂) σ'
-  | iteFalse {σ σ' c s₁ s₂} :
-      c.eval σ.st = some (.bool false) → Exec σ s₂ σ' →
-      Exec σ (.ite c s₁ s₂) σ'
-  | whileTrue {σ σ₁ σ₂ c b} :
-      c.eval σ.st = some (.bool true) → Exec σ b σ₁ → Exec σ₁ (.while c b) σ₂ →
-      Exec σ (.while c b) σ₂
-  | whileFalse {σ c b} :
-      c.eval σ.st = some (.bool false) →
-      Exec σ (.while c b) σ
-  /-- `x = p[i];` The cell must exist and hold a value of the pointer's element type. -/
-  | load {st m x p i t b k v} :
-      Expr.evalAddr st p i = some (t, b, k) →
-      m.read b k = some v → v.ty = .int t →
-      Exec ⟨st, m⟩ (.load x p i) ⟨st.set x v, m⟩
-  /-- `p[i] = e;` The cell must exist, and `e` must have the element type. -/
-  | store {st m m' p i e t b k v} :
-      Expr.evalAddr st p i = some (t, b, k) →
-      e.eval st = some v → v.ty = .int t →
-      m.write b k v = some m' →
-      Exec ⟨st, m⟩ (.store p i e) ⟨st, m'⟩
+A statement finishes in one of three ways (its **outcome**): normally, by `break`, or by
+`return v`. `seq` and `while` propagate abrupt outcomes the way C does; a `break` ends the
+innermost loop; a `return` unwinds to the enclosing call. This is the standard
+treatment (e.g. CompCert's Clight `outcome`, Certora's Lean Clight post-conditions).
 
-/-! ## Functions -/
+`Exec P σ s o σ'` runs inside a **program** `P`, which `call` uses to find functions by name.
+-/
+
+inductive Outcome where
+  | normal
+  | brk
+  | ret (v : Val)
+deriving DecidableEq, Repr, Inhabited
+
+/-- What a call returns once its body has finished with outcome `o` in store `st`:
+`return v` gives `v`, falling off the end evaluates `result`, and a stray `break` is
+an error. The value must have the declared return type. -/
+def Fn.finish (f : Fn) (o : Outcome) (st : Store) : Option Val :=
+  let v? := match o with
+    | .normal => f.result.eval st
+    | .ret v => some v
+    | .brk => none
+  v?.bind fun v => if v.ty = f.ret then some v else none
 
 /-- Bind parameters to arguments. Locals start uninitialised. -/
 def Fn.initStore (f : Fn) (args : List Val) : Option Store :=
@@ -238,10 +225,80 @@ def Fn.initStore (f : Fn) (args : List Val) : Option Store :=
     some ((f.params.zip args).foldl (fun σ (p, v) => σ.set p.1 v) Store.empty)
   else none
 
-/-- `f.Returns args m v m'`: calling `f` on `args` with memory `m` terminates without
-UB, returns `v`, and leaves memory `m'`. -/
-def Fn.Returns (f : Fn) (args : List Val) (m : Mem) (v : Val) (m' : Mem) : Prop :=
-  ∃ st₀ st₁, f.initStore args = some st₀ ∧ Exec ⟨st₀, m⟩ f.body ⟨st₁, m'⟩ ∧
-    f.result.eval st₁ = some v ∧ v.ty = f.ret
+/-- Assign the result of a call, if the call has a destination. -/
+def Store.setOpt (st : Store) : Option Ident → Val → Store
+  | some x, v => st.set x v
+  | none, _ => st
+
+/-- Evaluate call arguments, left to right (the order is unobservable: expressions are pure). -/
+def Expr.evalList (st : Store) : List Expr → Option (List Val)
+  | [] => some []
+  | e :: es => do let v ← e.eval st; let vs ← Expr.evalList st es; return v :: vs
+
+/-- `Exec P σ s o σ'`: in program `P`, running `s` from `σ` finishes with outcome `o` in
+`σ'`. There is deliberately no rule for diverging or stuck executions. -/
+inductive Exec (P : Program) : State → Stmt → Outcome → State → Prop
+  | skip {σ} :
+      Exec P σ .skip .normal σ
+  | assign {st m x e v} :
+      e.eval st = some v →
+      Exec P ⟨st, m⟩ (.assign x e) .normal ⟨st.set x v, m⟩
+  | seq {σ σ₁ σ₂ s₁ s₂ o} :
+      Exec P σ s₁ .normal σ₁ → Exec P σ₁ s₂ o σ₂ →
+      Exec P σ (.seq s₁ s₂) o σ₂
+  /-- `s₁` finished abruptly (`break` or `return`): skip `s₂`. -/
+  | seqAbrupt {σ σ₁ s₁ s₂ o} :
+      Exec P σ s₁ o σ₁ → o ≠ .normal →
+      Exec P σ (.seq s₁ s₂) o σ₁
+  | iteTrue {σ σ' c s₁ s₂ o} :
+      c.eval σ.st = some (.bool true) → Exec P σ s₁ o σ' →
+      Exec P σ (.ite c s₁ s₂) o σ'
+  | iteFalse {σ σ' c s₁ s₂ o} :
+      c.eval σ.st = some (.bool false) → Exec P σ s₂ o σ' →
+      Exec P σ (.ite c s₁ s₂) o σ'
+  | whileTrue {σ σ₁ σ₂ c b o} :
+      c.eval σ.st = some (.bool true) → Exec P σ b .normal σ₁ → Exec P σ₁ (.while c b) o σ₂ →
+      Exec P σ (.while c b) o σ₂
+  /-- `break` in the body ends the loop normally. -/
+  | whileBreak {σ σ₁ c b} :
+      c.eval σ.st = some (.bool true) → Exec P σ b .brk σ₁ →
+      Exec P σ (.while c b) .normal σ₁
+  /-- `return` in the body leaves the loop (and, at the call, the function). -/
+  | whileRet {σ σ₁ c b v} :
+      c.eval σ.st = some (.bool true) → Exec P σ b (.ret v) σ₁ →
+      Exec P σ (.while c b) (.ret v) σ₁
+  | whileFalse {σ c b} :
+      c.eval σ.st = some (.bool false) →
+      Exec P σ (.while c b) .normal σ
+  /-- `x = p[i];` The cell must exist and hold a value of the pointer's element type. -/
+  | load {st m x p i t b k v} :
+      Expr.evalAddr st p i = some (t, b, k) →
+      m.read b k = some v → v.ty = .int t →
+      Exec P ⟨st, m⟩ (.load x p i) .normal ⟨st.set x v, m⟩
+  /-- `p[i] = e;` The cell must exist, and `e` must have the element type. -/
+  | store {st m m' p i e t b k v} :
+      Expr.evalAddr st p i = some (t, b, k) →
+      e.eval st = some v → v.ty = .int t →
+      m.write b k v = some m' →
+      Exec P ⟨st, m⟩ (.store p i e) .normal ⟨st, m'⟩
+  | brk {σ} :
+      Exec P σ .brk .brk σ
+  | ret {σ e v} :
+      e.eval σ.st = some v →
+      Exec P σ (.ret e) (.ret v) σ
+  /-- `x = f(args);` The callee runs in a fresh store (its parameters and locals) on the
+  shared memory. Its result is assigned in the caller's store. -/
+  | call {st m x f args g vs st₀ o σ₁ v} :
+      P.find? f = some g → Expr.evalList st args = some vs → g.initStore vs = some st₀ →
+      Exec P ⟨st₀, m⟩ g.body o σ₁ → g.finish o σ₁.st = some v →
+      Exec P ⟨st, m⟩ (.call x f args) .normal ⟨st.setOpt x v, σ₁.mem⟩
+
+/-! ## Functions -/
+
+/-- `f.Returns P args m v m'`: in program `P`, calling `f` on `args` with memory `m`
+terminates without UB, returns `v`, and leaves memory `m'`. -/
+def Fn.Returns (f : Fn) (P : Program) (args : List Val) (m : Mem) (v : Val) (m' : Mem) : Prop :=
+  ∃ st₀ o σ₁, f.initStore args = some st₀ ∧ Exec P ⟨st₀, m⟩ f.body o σ₁ ∧
+    f.finish o σ₁.st = some v ∧ σ₁.mem = m'
 
 end LC

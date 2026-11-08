@@ -53,6 +53,27 @@ theorem Expr.eval_binop (σ : Store) (op : BinOp) (a b : Expr)
 @[simp] theorem Expr.eval_mul (σ : Store) (a b : Expr) :
     (a * b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .mul x) :=
   Expr.eval_binop σ .mul a b (by decide) (by decide)
+@[simp] theorem Expr.eval_div (σ : Store) (a b : Expr) :
+    (a / b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .div x) :=
+  Expr.eval_binop σ .div a b (by decide) (by decide)
+@[simp] theorem Expr.eval_mod (σ : Store) (a b : Expr) :
+    (a % b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .mod x) :=
+  Expr.eval_binop σ .mod a b (by decide) (by decide)
+@[simp] theorem Expr.eval_band (σ : Store) (a b : Expr) :
+    (a &&& b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .band x) :=
+  Expr.eval_binop σ .band a b (by decide) (by decide)
+@[simp] theorem Expr.eval_bor (σ : Store) (a b : Expr) :
+    (a ||| b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .bor x) :=
+  Expr.eval_binop σ .bor a b (by decide) (by decide)
+@[simp] theorem Expr.eval_bxor (σ : Store) (a b : Expr) :
+    (a ^^^ b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .bxor x) :=
+  Expr.eval_binop σ .bxor a b (by decide) (by decide)
+@[simp] theorem Expr.eval_shl (σ : Store) (a b : Expr) :
+    (a <<< b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .shl x) :=
+  Expr.eval_binop σ .shl a b (by decide) (by decide)
+@[simp] theorem Expr.eval_shr (σ : Store) (a b : Expr) :
+    (a >>> b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp .shr x) :=
+  Expr.eval_binop σ .shr a b (by decide) (by decide)
 @[simp] theorem Expr.eval_binop_simple (σ : Store) (op : BinOp) (a b : Expr)
     (h : op ∈ [.add, .sub, .mul, .div, .mod, .band, .bor, .bxor, .shl, .shr, .eq, .ne, .lt, .le]) :
     (Expr.binop op a b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp op x) :=

@@ -17,7 +17,7 @@
 | Names verbatim, but must be valid and non-reserved | readable output, and no renaming scheme to prove injective. Anything else is refused |
 | Headers: `<stdint.h>`, `<stdbool.h>`, `<limits.h>` only | all three are freestanding headers (C11 §4¶6). There are no allocations or libc calls |
 
-The result is [generated/examples.c](../generated/examples.c). It reads like hand-written C, apart from the extra parentheses:
+The result is [generated/lc_examples.c](../generated/lc_examples.c). It reads like hand-written C, apart from the extra parentheses:
 
 ```c
 uint64_t array_sum(uint32_t *p, uint32_t n) {

@@ -37,38 +37,40 @@ def isqrtBad : Fn where
 #guard isqrtBad.call [.u32 1000] = .ok (.u32 31)   -- fine on small inputs, which is why tests miss it
 
 /-! ## Sem.3 `while false` is `skip` -/
-theorem while_false_iff (σ σ' : State) (s : Stmt) :
-    Exec σ (.while (.lit (.bool false)) s) σ' ↔ σ' = σ := by
+theorem while_false_iff (P : Program) (σ σ' : State) (s : Stmt) (o : Outcome) :
+    Exec P σ (.while (.lit (.bool false)) s) o σ' ↔ o = .normal ∧ σ' = σ := by
   constructor
   · intro h; cases h with
     | whileTrue hc _ _ => simp [Expr.eval] at hc
-    | whileFalse _ => rfl
-  · rintro rfl; exact .whileFalse (by simp [Expr.eval])
+    | whileBreak hc _ => simp [Expr.eval] at hc
+    | whileRet hc _ => simp [Expr.eval] at hc
+    | whileFalse _ => exact ⟨rfl, rfl⟩
+  · rintro ⟨rfl, rfl⟩; exact .whileFalse (by simp [Expr.eval])
 
 /-! ## Sem.4 `skip ;; s` -/
-theorem skip_seq_iff (σ σ' : State) (s : Stmt) :
-    Exec σ (.seq .skip s) σ' ↔ Exec σ s σ' := by
+theorem skip_seq_iff (P : Program) (σ σ' : State) (s : Stmt) (o : Outcome) :
+    Exec P σ (.seq .skip s) o σ' ↔ Exec P σ s o σ' := by
   constructor
-  · intro h; cases h with | seq h₁ h₂ => cases h₁; exact h₂
+  · intro h; cases h with
+    | seq h₁ h₂ => cases h₁; exact h₂
+    | seqAbrupt h₁ hn => cases h₁; exact absurd rfl hn
   · intro h; exact .seq .skip h
 
 /-! ## Sem.5 fuel monotonicity -/
-theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
-    run n σ s = .ok σ' → run m σ s = .ok σ' := by
-  induction n generalizing m σ σ' s with
+theorem run_mono {P : Program} {n m : Nat} {σ : State} {s : Stmt} {r : Outcome × State}
+    (hle : n ≤ m) : run P n σ s = .ok r → run P m σ s = .ok r := by
+  induction n generalizing m σ s r with
   | zero => simp [run]
   | succ n ih =>
     obtain ⟨m, rfl⟩ : ∃ k, m = k + 1 := ⟨m - 1, by omega⟩
     have hle' : n ≤ m := by omega
     cases s with
-    | skip => simp [run]
-    | assign x e => simp [run]
-    | load x p i => simp [run]
-    | store p i e => simp [run]
+    | skip | assign | load | store | brk | ret => simp [run]
     | seq s₁ s₂ =>
       simp only [run]
       split
       · next σ₁ h₁ => intro h₂; rw [ih hle' h₁]; exact ih hle' h₂
+      · next o₁ σ₁ hne h₁ => intro h; rw [ih hle' h₁]; cases o₁ <;> simp_all
       · simp
       · simp
     | ite c s₁ s₂ =>
@@ -80,14 +82,26 @@ theorem run_mono {n m : Nat} {σ σ' : State} {s : Stmt} (hle : n ≤ m) :
       simp only [run]; split
       · split
         · next σ₁ hb => intro hw; rw [ih hle' hb]; exact ih hle' hw
+        · next σ₁ hb => intro h; rw [ih hle' hb]; exact h
+        · next v σ₁ hb => intro h; rw [ih hle' hb]; exact h
         · simp
         · simp
       · simp
+      · simp
+    | call x f args =>
+      obtain ⟨st, mm⟩ := σ
+      simp only [run]; split
+      · split
+        · split
+          · next o₁ σ₁ hb => intro h; rw [ih hle' hb]; exact h
+          · simp
+          · simp
+        · simp
       · simp
 
 /-! ## Sem.6 completeness -/
-theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
-    ∃ n, run n σ s = .ok σ' := by
+theorem run_complete {P : Program} {σ σ' : State} {s : Stmt} {o : Outcome}
+    (h : Exec P σ s o σ') : ∃ n, run P n σ s = .ok (o, σ') := by
   induction h with
   | skip => exact ⟨1, rfl⟩
   | assign hv => exact ⟨1, by simp [run, hv]⟩
@@ -96,6 +110,10 @@ theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
     refine ⟨max n₁ n₂ + 1, ?_⟩
     simp only [run, run_mono (m := max n₁ n₂) (by omega) h₁]
     exact run_mono (m := max n₁ n₂) (by omega) h₂
+  | @seqAbrupt σ σ₁ s₁ s₂ o _ hn ih =>
+    obtain ⟨n, h⟩ := ih
+    refine ⟨n + 1, ?_⟩
+    cases o <;> simp_all [run]
   | iteTrue hc _ ih =>
     obtain ⟨n, hn⟩ := ih; exact ⟨n + 1, by simp [run, hc, hn]⟩
   | iteFalse hc _ ih =>
@@ -105,9 +123,14 @@ theorem run_complete {σ σ' : State} {s : Stmt} (h : Exec σ s σ') :
     refine ⟨max n₁ n₂ + 1, ?_⟩
     simp only [run, hc, run_mono (m := max n₁ n₂) (by omega) h₁]
     exact run_mono (m := max n₁ n₂) (by omega) h₂
+  | whileBreak hc _ ih => obtain ⟨n, hn⟩ := ih; exact ⟨n + 1, by simp [run, hc, hn]⟩
+  | whileRet hc _ ih => obtain ⟨n, hn⟩ := ih; exact ⟨n + 1, by simp [run, hc, hn]⟩
   | whileFalse hc => exact ⟨1, by simp [run, hc]⟩
   | load ha hv hty => exact ⟨1, by simp [run, ha, hv, hty]⟩
   | store ha he hty hw => exact ⟨1, by simp [run, ha, he, hty, hw]⟩
+  | brk => exact ⟨1, rfl⟩
+  | ret hv => exact ⟨1, by simp [run, hv]⟩
+  | call hg hvs h₀ _ hfin ih => obtain ⟨n, hn⟩ := ih; exact ⟨n + 1, by simp [run, hg, hvs, h₀, hn, hfin]⟩
 
 /-! ## Sem.7
 Determinism is used in the `seq` and `while` cases: the interpreter ran `s₁` to `σ₁`

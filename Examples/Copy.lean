@@ -66,16 +66,16 @@ def copyInv (dst src : Ptr) (ss ds : List (BitVec 8)) : SProp := fun st h =>
 Precondition: `dst` owns bytes `ds`, `src` owns bytes `ss` (same length `n`), and the
 two are disjoint (`∗`). Postcondition: `dst` holds `ss`, `src` is unchanged, and the
 rest of memory (`hf`) is untouched. -/
-theorem copy_correct (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
+theorem copy_correct (P : Program) (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
     (hd : ds.length = ss.length) (h hf : Heap) (m : Mem)
     (hpre : (array dst (u8s ds) ∗ array src (u8s ss)) h) (d : h.Disjoint hf)
     (hm : m.heap = h.union hf) :
-    ∃ m' h', copy.Returns [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
+    ∃ m' h', copy.Returns P [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
       h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ (array dst (u8s ss) ∗ array src (u8s ss)) h' := by
   have hinit : copy.initStore [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] =
       some [("dst", .ptr .u8 dst), ("src", .ptr .u8 src), ("n", nu32 ss.length)] := by
     simp [Fn.initStore, copy, Store.empty]; repeat' constructor
-  suffices hbody : swp copy.body (fun st h' => ∃ v, copy.result.eval st = some v ∧
+  suffices hbody : swp P copy.body (fun st h' => ∃ v, copy.result.eval st = some v ∧
       v.ty = copy.ret ∧ (v = .unit ∧ (array dst (u8s ss) ∗ array src (u8s ss)) h')) _ h by
     obtain ⟨v, m', h', hret, d', hm', rfl, hpost⟩ := Fn.returns_of_swp
       (post := fun v h' => v = .unit ∧ (array dst (u8s ss) ∗ array src (u8s ss)) h')

@@ -26,16 +26,16 @@ Prove that pushing `x` onto an empty buffer and then popping gives back `x`, *us
 the `out` byte (`h₂`) is part of the frame; when you pop, it isn't.
 Hint: `obtain ⟨h₁, h₂, d₁₂, rfl, hrb, hout⟩ := hpre`, then `Heap.disjoint_union_left/right`
 and `Heap.union_assoc` to re-bracket the heaps for each call. -/
-theorem push_then_pop (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (hpos : 0 < cap)
+theorem push_then_pop (P : Program) (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 32) (hpos : 0 < cap)
     (x : BitVec 8) (w : Val) (h hf : Heap) (m : Mem)
     (hpre : (rb b s cap [] ∗ array o [w]) h) (d : h.Disjoint hf) (hm : m.heap = h.union hf) :
-    ∃ m₁ m₂, rbPush.Returns [.ptr .u8 b, .ptr .u32 s, .u32 cap, .int .u8 x] m (.bool true) m₁ ∧
-      rbPop.Returns [.ptr .u8 b, .ptr .u32 s, .u32 cap, .ptr .u8 o] m₁ (.bool true) m₂ ∧
+    ∃ m₁ m₂, rbPush.Returns P [.ptr .u8 b, .ptr .u32 s, .u32 cap, .int .u8 x] m (.bool true) m₁ ∧
+      rbPop.Returns P [.ptr .u8 b, .ptr .u32 s, .u32 cap, .ptr .u8 o] m₁ (.bool true) m₂ ∧
       m₂.read o.blk o.off = some (.int .u8 x) := by
   sorry
 
 /-! ## Ring.4 (✍️ 10 min): the trusted computing base, concretely
-Write down everything you must *trust* to believe "the `rb_push` in generated/examples.c, compiled
+Write down everything you must *trust* to believe "the `rb_push` in generated/lc_examples.c, compiled
 with clang, is a correct ring-buffer push". For each item, say whether it is proved, tested,
 or only trusted (see the table in docs/ring-buffer.md). -/
 

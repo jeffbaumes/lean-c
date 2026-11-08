@@ -117,11 +117,21 @@ theorem StoreTyped.set {Γ : TyEnv} {σ : Store} {x : Ident} {v : Val}
   · subst h; simp at hy; subst hy; exact hx
   · rw [Store.get_set_other _ _ _ _ h] at hy; exact hσ y w hy
 
-/-- Executing a well-typed statement keeps every variable at its declared type. -/
-theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : State} {s : Stmt}
-    (h : Exec σ s σ') (hwt : s.typeCheck Γ = true) (hσ : StoreTyped Γ σ.st) :
+theorem Fn.finish_ty {f : Fn} {o : Outcome} {st : Store} {v : Val}
+    (h : f.finish o st = some v) : v.ty = f.ret := by
+  unfold Fn.finish at h
+  obtain ⟨w, -, h⟩ := Option.bind_eq_some_iff.mp h
+  split at h
+  · next e => cases h; exact e
+  · simp at h
+
+/-- Executing a well-typed statement keeps every variable at its declared type. (The
+callee of a `call` runs in its own store, so only the assigned result matters here.) -/
+theorem Exec.preserves_typed {P : Program} {Γ : TyEnv} {rt : Ty} {lp : Bool}
+    {σ σ' : State} {s : Stmt} {o : Outcome}
+    (h : Exec P σ s o σ') (hwt : s.typeCheck Γ P.sigs rt lp = true) (hσ : StoreTyped Γ σ.st) :
     StoreTyped Γ σ'.st := by
-  induction h with
+  induction h generalizing lp with
   | skip => exact hσ
   | @assign st m x e v hv =>
     simp only [Stmt.typeCheck, Bool.and_eq_true, Option.isSome_iff_exists, beq_iff_eq] at hwt
@@ -131,6 +141,8 @@ theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : State} {s : Stmt}
   | seq _ _ ih₁ ih₂ =>
     simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt
     exact ih₂ hwt.2 (ih₁ hwt.1 hσ)
+  | seqAbrupt _ _ ih =>
+    simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt; exact ih hwt.1 hσ
   | iteTrue _ _ ih =>
     simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt; exact ih hwt.1.2 hσ
   | iteFalse _ _ ih =>
@@ -139,6 +151,10 @@ theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : State} {s : Stmt}
     have hw := hwt
     simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt
     exact ihw hw (ihb hwt.2 hσ)
+  | whileBreak _ _ ih =>
+    simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt; exact ih hwt.2 hσ
+  | whileRet _ _ ih =>
+    simp only [Stmt.typeCheck, Bool.and_eq_true] at hwt; exact ih hwt.2 hσ
   | whileFalse _ => exact hσ
   | @load st m x p i t b k v ha _ hty =>
     -- the dynamic check `v.ty = .int t` plus the static `Γ x = ptr's element type`
@@ -158,5 +174,15 @@ theorem Exec.preserves_typed {Γ : TyEnv} {σ σ' : State} {s : Stmt}
       exact StoreTyped.set hσ (by rw [hwt.2, hty])
     · simp at hwt
   | store => exact hσ
+  | brk => exact hσ
+  | ret => exact hσ
+  | @call st m x f args g vs st₀ o' σ₁ v hg _ _ _ hfin _ =>
+    simp only [Stmt.typeCheck, Program.sigs, hg, Option.map_some] at hwt
+    simp only [Bool.and_eq_true] at hwt
+    cases x with
+    | none => exact hσ
+    | some x =>
+      simp only [beq_iff_eq] at hwt
+      exact StoreTyped.set hσ (by rw [hwt.2, Fn.finish_ty hfin])
 
 end LC

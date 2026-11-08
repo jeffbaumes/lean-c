@@ -208,25 +208,29 @@ theorem Mem.write_heap {m : Mem} {b k : Nat} {v₀ : Val} (hr : m.read b k = som
 /-- Assertions over the store and the owned heap fragment. -/
 abbrev SProp := Store → HProp
 
-def swp (s : Stmt) (Q : SProp) (st : Store) (h : Heap) : Prop :=
+/-- The local weakest precondition for **normal** completion: `s` (in program `Pr`) runs from
+`(st, h ⊎ hf)` without UB, finishes normally, leaves the frame `hf` alone, and satisfies `Q`.
+Use this for straight-line and loop code; `swpo` below handles `break`/`return`. -/
+def swp (Pr : Program) (s : Stmt) (Q : SProp) (st : Store) (h : Heap) : Prop :=
   ∀ (m : Mem) (hf : Heap), h.Disjoint hf → m.heap = h.union hf →
-    ∃ st' m' h', Exec ⟨st, m⟩ s ⟨st', m'⟩ ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ Q st' h'
+    ∃ st' m' h', Exec Pr ⟨st, m⟩ s .normal ⟨st', m'⟩ ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧
+      Q st' h'
 
 /-- Separation-logic triple: from any `P`-state, in any surrounding memory, `s`
 terminates without UB in a `Q`-state, leaving the rest of memory alone. -/
-def STriple (P : SProp) (s : Stmt) (Q : SProp) : Prop :=
-  ∀ st h, P st h → swp s Q st h
+def STriple (Pr : Program) (Pre : SProp) (s : Stmt) (Q : SProp) : Prop :=
+  ∀ st h, Pre st h → swp Pr s Q st h
 
-theorem swp_mono {s : Stmt} {Q Q' : SProp} {st : Store} {h : Heap}
-    (himp : ∀ st h, Q st h → Q' st h) (hw : swp s Q st h) : swp s Q' st h := by
+theorem swp_mono {Pr : Program} {s : Stmt} {Q Q' : SProp} {st : Store} {h : Heap}
+    (himp : ∀ st h, Q st h → Q' st h) (hw : swp Pr s Q st h) : swp Pr s Q' st h := by
   intro m hf d hm
   obtain ⟨st', m', h', hex, d', hm', hq⟩ := hw m hf d hm
   exact ⟨st', m', h', hex, d', hm', himp _ _ hq⟩
 
 /-- **The frame rule.** Whatever `s` doesn't own, it leaves alone. -/
-theorem swp_frame {s : Stmt} {Q : SProp} {R : HProp} {st : Store} {h₁ h₂ : Heap}
-    (hw : swp s Q st h₁) (hr : R h₂) (d : h₁.Disjoint h₂) :
-    swp s (fun st' => Q st' ∗ R) st (h₁.union h₂) := by
+theorem swp_frame {Pr : Program} {s : Stmt} {Q : SProp} {R : HProp} {st : Store} {h₁ h₂ : Heap}
+    (hw : swp Pr s Q st h₁) (hr : R h₂) (d : h₁.Disjoint h₂) :
+    swp Pr s (fun st' => Q st' ∗ R) st (h₁.union h₂) := by
   intro m hf dhf hm
   obtain ⟨d₁, d₂⟩ := Heap.disjoint_union_left.mp dhf
   obtain ⟨st', m', h₁', hex, d', hm', hq⟩ :=
@@ -235,34 +239,34 @@ theorem swp_frame {s : Stmt} {Q : SProp} {R : HProp} {st : Store} {h₁ h₂ : H
   refine ⟨st', m', h₁'.union h₂, hex, Heap.disjoint_union_left.mpr ⟨d'f, d₂⟩,
     by rw [hm', Heap.union_assoc], h₁', h₂, d'₂, rfl, hq, hr⟩
 
-theorem swp_skip {Q : SProp} {st : Store} {h : Heap} (hq : Q st h) : swp .skip Q st h :=
+theorem swp_skip {Pr : Program} {Q : SProp} {st : Store} {h : Heap} (hq : Q st h) : swp Pr .skip Q st h :=
   fun m _ d hm => ⟨st, m, h, .skip, d, hm, hq⟩
 
-theorem swp_assign {x : Ident} {e : Expr} {Q : SProp} {st : Store} {h : Heap} {v : Val}
-    (hv : e.eval st = some v) (hq : Q (st.set x v) h) : swp (.assign x e) Q st h :=
+theorem swp_assign {Pr : Program} {x : Ident} {e : Expr} {Q : SProp} {st : Store} {h : Heap} {v : Val}
+    (hv : e.eval st = some v) (hq : Q (st.set x v) h) : swp Pr (.assign x e) Q st h :=
   fun m _ d hm => ⟨st.set x v, m, h, .assign hv, d, hm, hq⟩
 
-theorem swp_seq {s₁ s₂ : Stmt} {Q : SProp} {st : Store} {h : Heap}
-    (hw : swp s₁ (swp s₂ Q) st h) : swp (.seq s₁ s₂) Q st h := by
+theorem swp_seq {Pr : Program} {s₁ s₂ : Stmt} {Q : SProp} {st : Store} {h : Heap}
+    (hw : swp Pr s₁ (swp Pr s₂ Q) st h) : swp Pr (.seq s₁ s₂) Q st h := by
   intro m hf d hm
   obtain ⟨st₁, m₁, h₁, hex₁, d₁, hm₁, hw₂⟩ := hw m hf d hm
   obtain ⟨st₂, m₂, h₂, hex₂, d₂, hm₂, hq⟩ := hw₂ m₁ hf d₁ hm₁
   exact ⟨st₂, m₂, h₂, .seq hex₁ hex₂, d₂, hm₂, hq⟩
 
-theorem swp_ite {c : Expr} {s₁ s₂ : Stmt} {Q : SProp} {st : Store} {h : Heap}
-    (hw : (c.eval st = some (.bool true) ∧ swp s₁ Q st h) ∨
-          (c.eval st = some (.bool false) ∧ swp s₂ Q st h)) :
-    swp (.ite c s₁ s₂) Q st h := by
+theorem swp_ite {Pr : Program} {c : Expr} {s₁ s₂ : Stmt} {Q : SProp} {st : Store} {h : Heap}
+    (hw : (c.eval st = some (.bool true) ∧ swp Pr s₁ Q st h) ∨
+          (c.eval st = some (.bool false) ∧ swp Pr s₂ Q st h)) :
+    swp Pr (.ite c s₁ s₂) Q st h := by
   intro m hf d hm
   rcases hw with ⟨hc, hw⟩ | ⟨hc, hw⟩
   · obtain ⟨st', m', h', hex, r⟩ := hw m hf d hm; exact ⟨st', m', h', .iteTrue hc hex, r⟩
   · obtain ⟨st', m', h', hex, r⟩ := hw m hf d hm; exact ⟨st', m', h', .iteFalse hc hex, r⟩
 
 /-- `x = p[i];` reads a cell that the precondition **owns**, so it must be in bounds. -/
-theorem swp_load {x : Ident} {p i : Expr} {Q : SProp} {st : Store} {h : Heap}
+theorem swp_load {Pr : Program} {x : Ident} {p i : Expr} {Q : SProp} {st : Store} {h : Heap}
     {t : IntTy} {b k : Nat} {v : Val}
     (ha : Expr.evalAddr st p i = some (t, b, k)) (hcell : h (b, k) = some v)
-    (hty : v.ty = .int t) (hq : Q (st.set x v) h) : swp (.load x p i) Q st h := by
+    (hty : v.ty = .int t) (hq : Q (st.set x v) h) : swp Pr (.load x p i) Q st h := by
   intro m hf d hm
   have hr : m.read b k = some v := by
     show m.heap (b, k) = some v; rw [hm]; exact Heap.union_get_left hcell
@@ -270,11 +274,11 @@ theorem swp_load {x : Ident} {p i : Expr} {Q : SProp} {st : Store} {h : Heap}
 
 /-- `p[i] = e;` writes a cell that the precondition owns. The postcondition sees
 the updated fragment, and the frame is untouched. -/
-theorem swp_store {p i e : Expr} {Q : SProp} {st : Store} {h : Heap}
+theorem swp_store {Pr : Program} {p i e : Expr} {Q : SProp} {st : Store} {h : Heap}
     {t : IntTy} {b k : Nat} {v v₀ : Val}
     (ha : Expr.evalAddr st p i = some (t, b, k)) (hv : e.eval st = some v)
     (hty : v.ty = .int t) (hcell : h (b, k) = some v₀)
-    (hq : Q st (h.update (b, k) v)) : swp (.store p i e) Q st h := by
+    (hq : Q st (h.update (b, k) v)) : swp Pr (.store p i e) Q st h := by
   intro m hf d hm
   have hr : m.read b k = some v₀ := by
     show m.heap (b, k) = some v₀; rw [hm]; exact Heap.union_get_left hcell
@@ -284,13 +288,13 @@ theorem swp_store {p i e : Expr} {Q : SProp} {st : Store} {h : Heap}
     by rw [hm', hm, Heap.update_union_left hfa], hq⟩
 
 /-- **The loop rule**, exactly like `wp_while` but over (store, owned fragment). -/
-theorem swp_while {c : Expr} {b : Stmt} {Q : SProp}
+theorem swp_while {Pr : Program} {c : Expr} {b : Stmt} {Q : SProp}
     (I : SProp) (μ : Store → Heap → Nat)
     (hcond : ∀ st h, I st h → ∃ bv, c.eval st = some (.bool bv))
     (hbody : ∀ st h, I st h → c.eval st = some (.bool true) →
-      swp b (fun st' h' => I st' h' ∧ μ st' h' < μ st h) st h)
+      swp Pr b (fun st' h' => I st' h' ∧ μ st' h' < μ st h) st h)
     (hexit : ∀ st h, I st h → c.eval st = some (.bool false) → Q st h) :
-    ∀ st h, I st h → swp (.while c b) Q st h := by
+    ∀ st h, I st h → swp Pr (.while c b) Q st h := by
   intro st h
   induction hk : μ st h using Nat.strongRecOn generalizing st h with
   | ind k ih =>
@@ -310,34 +314,183 @@ The rules above take the computed value as an argument. These variants put it un
 an `∃`, so after `apply`, `simp` can compute the expression and fill it in, just
 as with `wp_assign` in Hoare.lean. -/
 
-theorem swp_assign' {x : Ident} {e : Expr} {Q : SProp} {st : Store} {h : Heap}
-    (hw : ∃ v, e.eval st = some v ∧ Q (st.set x v) h) : swp (.assign x e) Q st h :=
+theorem swp_assign' {Pr : Program} {x : Ident} {e : Expr} {Q : SProp} {st : Store} {h : Heap}
+    (hw : ∃ v, e.eval st = some v ∧ Q (st.set x v) h) : swp Pr (.assign x e) Q st h :=
   let ⟨_, hv, hq⟩ := hw; swp_assign hv hq
 
-theorem swp_load' {x : Ident} {p i : Expr} {Q : SProp} {st : Store} {h : Heap}
+theorem swp_load' {Pr : Program} {x : Ident} {p i : Expr} {Q : SProp} {st : Store} {h : Heap}
     (hw : ∃ t b k, Expr.evalAddr st p i = some (t, b, k) ∧
       ∃ v, h (b, k) = some v ∧ v.ty = .int t ∧ Q (st.set x v) h) :
-    swp (.load x p i) Q st h :=
+    swp Pr (.load x p i) Q st h :=
   let ⟨_, _, _, ha, _, hc, hty, hq⟩ := hw; swp_load ha hc hty hq
 
-theorem swp_store' {p i e : Expr} {Q : SProp} {st : Store} {h : Heap}
+theorem swp_store' {Pr : Program} {p i e : Expr} {Q : SProp} {st : Store} {h : Heap}
     (hw : ∃ t b k, Expr.evalAddr st p i = some (t, b, k) ∧
       ∃ v, e.eval st = some v ∧ v.ty = .int t ∧ (∃ v₀, h (b, k) = some v₀) ∧
         Q st (h.update (b, k) v)) :
-    swp (.store p i e) Q st h :=
+    swp Pr (.store p i e) Q st h :=
   let ⟨_, _, _, ha, _, hv, hty, ⟨_, hc⟩, hq⟩ := hw; swp_store ha hv hty hc hq
 
-/-! ## Functions -/
+/-! ## Functions (normal completion) -/
+
+theorem Fn.finish_normal {f : Fn} {st : Store} {v : Val}
+    (hv : f.result.eval st = some v) (hty : v.ty = f.ret) : f.finish .normal st = some v := by
+  simp [Fn.finish, hv, hty]
 
 /-- From a local `swp` of the body to a fact about calling the function in *any*
 memory containing the fragment `h`. -/
-theorem Fn.returns_of_swp {f : Fn} {args : List Val} {st₀ : Store} {h hf : Heap} {m : Mem}
-    {post : Val → HProp}
+theorem Fn.returns_of_swp {Pr : Program} {f : Fn} {args : List Val} {st₀ : Store} {h hf : Heap}
+    {m : Mem} {post : Val → HProp}
     (hinit : f.initStore args = some st₀)
-    (hw : swp f.body (fun st h' => ∃ v, f.result.eval st = some v ∧ v.ty = f.ret ∧ post v h') st₀ h)
+    (hw : swp Pr f.body (fun st h' => ∃ v, f.result.eval st = some v ∧ v.ty = f.ret ∧ post v h')
+      st₀ h)
     (d : h.Disjoint hf) (hm : m.heap = h.union hf) :
-    ∃ v m' h', f.Returns args m v m' ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ post v h' := by
+    ∃ v m' h', f.Returns Pr args m v m' ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ post v h' := by
   obtain ⟨st₁, m', h', hex, d', hm', v, hv, hty, hpost⟩ := hw m hf d hm
-  exact ⟨v, m', h', ⟨st₀, st₁, hinit, hex, hv, hty⟩, d', hm', hpost⟩
+  exact ⟨v, m', h', ⟨st₀, .normal, ⟨st₁, m'⟩, hinit, hex, Fn.finish_normal hv hty, rfl⟩,
+    d', hm', hpost⟩
+
+/-! ## `break`, `return` and calls: the outcome-indexed weakest precondition
+
+`swpo Pr s Q` is `swp` with one postcondition per outcome: `Q .normal`, `Q .brk` and
+`Q (.ret v)`. `swp` is the special case where only normal completion is allowed
+(`swpo_of_swp`), so existing straight-line proofs plug straight in. -/
+
+def swpo (Pr : Program) (s : Stmt) (Q : Outcome → SProp) (st : Store) (h : Heap) : Prop :=
+  ∀ (m : Mem) (hf : Heap), h.Disjoint hf → m.heap = h.union hf →
+    ∃ o st' m' h', Exec Pr ⟨st, m⟩ s o ⟨st', m'⟩ ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧
+      Q o st' h'
+
+theorem swpo_of_swp {Pr : Program} {s : Stmt} {Q : Outcome → SProp} {st : Store} {h : Heap}
+    (hw : swp Pr s (Q .normal) st h) : swpo Pr s Q st h := by
+  intro m hf d hm
+  obtain ⟨st', m', h', hex, d', hm', hq⟩ := hw m hf d hm
+  exact ⟨.normal, st', m', h', hex, d', hm', hq⟩
+
+theorem swpo_mono {Pr : Program} {s : Stmt} {Q Q' : Outcome → SProp} {st : Store} {h : Heap}
+    (himp : ∀ o st h, Q o st h → Q' o st h) (hw : swpo Pr s Q st h) : swpo Pr s Q' st h := by
+  intro m hf d hm
+  obtain ⟨o, st', m', h', hex, d', hm', hq⟩ := hw m hf d hm
+  exact ⟨o, st', m', h', hex, d', hm', himp _ _ _ hq⟩
+
+/-- Sequencing: if `s₁` finishes normally, continue with `s₂`; otherwise `s₂` is skipped
+and the abrupt outcome is the result. -/
+theorem swpo_seq {Pr : Program} {s₁ s₂ : Stmt} {Q : Outcome → SProp} {st : Store} {h : Heap}
+    (hw : swpo Pr s₁ (fun o => match o with
+      | .normal => swpo Pr s₂ Q
+      | o => Q o) st h) :
+    swpo Pr (.seq s₁ s₂) Q st h := by
+  intro m hf d hm
+  obtain ⟨o, st₁, m₁, h₁, hex₁, d₁, hm₁, hq⟩ := hw m hf d hm
+  cases o with
+  | normal =>
+    obtain ⟨o₂, st₂, m₂, h₂, hex₂, d₂, hm₂, hq₂⟩ := hq m₁ hf d₁ hm₁
+    exact ⟨o₂, st₂, m₂, h₂, .seq hex₁ hex₂, d₂, hm₂, hq₂⟩
+  | brk => exact ⟨.brk, st₁, m₁, h₁, .seqAbrupt hex₁ (by simp), d₁, hm₁, hq⟩
+  | ret v => exact ⟨.ret v, st₁, m₁, h₁, .seqAbrupt hex₁ (by simp), d₁, hm₁, hq⟩
+
+/-- The common case: `s₁` always finishes normally (an assignment, a load, a store…). -/
+theorem swpo_seq_normal {Pr : Program} {s₁ s₂ : Stmt} {Q : Outcome → SProp} {st : Store}
+    {h : Heap} (hw : swp Pr s₁ (swpo Pr s₂ Q) st h) : swpo Pr (.seq s₁ s₂) Q st h :=
+  swpo_seq (swpo_of_swp hw)
+
+theorem swpo_ite {Pr : Program} {c : Expr} {s₁ s₂ : Stmt} {Q : Outcome → SProp} {st : Store}
+    {h : Heap}
+    (hw : (c.eval st = some (.bool true) ∧ swpo Pr s₁ Q st h) ∨
+          (c.eval st = some (.bool false) ∧ swpo Pr s₂ Q st h)) :
+    swpo Pr (.ite c s₁ s₂) Q st h := by
+  intro m hf d hm
+  rcases hw with ⟨hc, hw⟩ | ⟨hc, hw⟩
+  · obtain ⟨o, st', m', h', hex, r⟩ := hw m hf d hm; exact ⟨o, st', m', h', .iteTrue hc hex, r⟩
+  · obtain ⟨o, st', m', h', hex, r⟩ := hw m hf d hm; exact ⟨o, st', m', h', .iteFalse hc hex, r⟩
+
+theorem swpo_brk {Pr : Program} {Q : Outcome → SProp} {st : Store} {h : Heap}
+    (hq : Q .brk st h) : swpo Pr .brk Q st h :=
+  fun m _ d hm => ⟨.brk, st, m, h, .brk, d, hm, hq⟩
+
+theorem swpo_ret {Pr : Program} {e : Expr} {Q : Outcome → SProp} {st : Store} {h : Heap}
+    {v : Val} (hv : e.eval st = some v) (hq : Q (.ret v) st h) : swpo Pr (.ret e) Q st h :=
+  fun m _ d hm => ⟨.ret v, st, m, h, .ret hv, d, hm, hq⟩
+
+/-- **Loops that can exit early.** As `swp_while`, but the body's postcondition says what
+each outcome means: `normal` must re-establish `I` and decrease `μ`; `break` must establish
+the loop's normal postcondition; `return v` must establish the loop's `return` postcondition. -/
+theorem swpo_while {Pr : Program} {c : Expr} {b : Stmt} {Q : Outcome → SProp}
+    (I : SProp) (μ : Store → Heap → Nat)
+    (hcond : ∀ st h, I st h → ∃ bv, c.eval st = some (.bool bv))
+    (hbody : ∀ st h, I st h → c.eval st = some (.bool true) →
+      swpo Pr b (fun o st' h' => match o with
+        | .normal => I st' h' ∧ μ st' h' < μ st h
+        | .brk => Q .normal st' h'
+        | .ret v => Q (.ret v) st' h') st h)
+    (hexit : ∀ st h, I st h → c.eval st = some (.bool false) → Q .normal st h) :
+    ∀ st h, I st h → swpo Pr (.while c b) Q st h := by
+  intro st h
+  induction hk : μ st h using Nat.strongRecOn generalizing st h with
+  | ind k ih =>
+    intro hI m hf d hm
+    obtain ⟨bv, hc⟩ := hcond st h hI
+    cases bv with
+    | false => exact ⟨.normal, st, m, h, .whileFalse hc, d, hm, hexit st h hI hc⟩
+    | true =>
+      obtain ⟨o, st₁, m₁, h₁, hex₁, d₁, hm₁, hq⟩ := hbody st h hI hc m hf d hm
+      cases o with
+      | normal =>
+        obtain ⟨hI₁, hlt⟩ := hq
+        obtain ⟨o₂, st₂, m₂, h₂, hex₂, d₂, hm₂, hq₂⟩ :=
+          ih (μ st₁ h₁) (hk ▸ hlt) st₁ h₁ rfl hI₁ m₁ hf d₁ hm₁
+        exact ⟨o₂, st₂, m₂, h₂, .whileTrue hc hex₁ hex₂, d₂, hm₂, hq₂⟩
+      | brk => exact ⟨.normal, st₁, m₁, h₁, .whileBreak hc hex₁, d₁, hm₁, hq⟩
+      | ret v => exact ⟨.ret v, st₁, m₁, h₁, .whileRet hc hex₁, d₁, hm₁, hq⟩
+
+/-- **Calls, modularly.** The caller owns `h₁ ⊎ h₂`; the callee gets `h₁`. Given the callee's
+own proof about its body (`hbody`, typically an instance of a spec theorem proved once), the
+call finishes normally with the result assigned, `h₂` untouched, and the callee's
+postcondition `R` about its part. This is the frame rule at a function boundary. -/
+theorem swpo_call {Pr : Program} {x : Option Ident} {f : Ident} {args : List Expr}
+    {Q : Outcome → SProp} {st : Store} {h₁ h₂ : Heap} {g : Fn} {vs : List Val} {st₀ : Store}
+    {R : Val → HProp}
+    (hg : Pr.find? f = some g) (hargs : Expr.evalList st args = some vs)
+    (hinit : g.initStore vs = some st₀)
+    (hbody : swpo Pr g.body (fun o st' h' => ∃ v, g.finish o st' = some v ∧ R v h') st₀ h₁)
+    (d : h₁.Disjoint h₂)
+    (hq : ∀ v h₁', R v h₁' → h₁'.Disjoint h₂ → Q .normal (st.setOpt x v) (h₁'.union h₂)) :
+    swpo Pr (.call x f args) Q st (h₁.union h₂) := by
+  intro m hf dhf hm
+  obtain ⟨d₁, d₂⟩ := Heap.disjoint_union_left.mp dhf
+  obtain ⟨o, st', m', h₁', hex, d', hm', v, hfin, hR⟩ :=
+    hbody m (h₂.union hf) (Heap.disjoint_union_right.mpr ⟨d, d₁⟩) (by rw [hm, Heap.union_assoc])
+  obtain ⟨d'₂, d'f⟩ := Heap.disjoint_union_right.mp d'
+  exact ⟨.normal, st.setOpt x v, m', h₁'.union h₂, .call hg hargs hinit hex hfin,
+    Heap.disjoint_union_left.mpr ⟨d'f, d₂⟩, by rw [hm', Heap.union_assoc], hq v h₁' hR d'₂⟩
+
+theorem Heap.empty_union (h : Heap) : Heap.empty.union h = h := by
+  funext a; simp [Heap.union, Heap.empty]
+
+theorem Heap.empty_disjoint (h : Heap) : Heap.empty.Disjoint h := fun _ => .inl rfl
+
+/-- Calls to a callee that owns **no** memory (a pure helper): no heap split needed. -/
+theorem swpo_call_pure {Pr : Program} {x : Option Ident} {f : Ident} {args : List Expr}
+    {Q : Outcome → SProp} {st : Store} {h : Heap} {g : Fn} {vs : List Val} {st₀ : Store}
+    {R : Val → Prop}
+    (hg : Pr.find? f = some g) (hargs : Expr.evalList st args = some vs)
+    (hinit : g.initStore vs = some st₀)
+    (hbody : swpo Pr g.body (fun o st' h' => ∃ v, g.finish o st' = some v ∧ R v ∧ h' = Heap.empty)
+      st₀ Heap.empty)
+    (hq : ∀ v, R v → Q .normal (st.setOpt x v) h) :
+    swpo Pr (.call x f args) Q st h := by
+  have := swpo_call (h₂ := h) (R := fun v h' => R v ∧ h' = Heap.empty) hg hargs hinit hbody
+    (Heap.empty_disjoint h) (fun v h₁' ⟨hr, e⟩ _ => by subst e; rw [Heap.empty_union]; exact hq v hr)
+  rwa [Heap.empty_union] at this
+
+/-- From a local `swpo` of the body (which may `return`) to a fact about calling the function. -/
+theorem Fn.returns_of_swpo {Pr : Program} {f : Fn} {args : List Val} {st₀ : Store} {h hf : Heap}
+    {m : Mem} {post : Val → HProp}
+    (hinit : f.initStore args = some st₀)
+    (hw : swpo Pr f.body (fun o st h' => ∃ v, f.finish o st = some v ∧ post v h') st₀ h)
+    (d : h.Disjoint hf) (hm : m.heap = h.union hf) :
+    ∃ v m' h', f.Returns Pr args m v m' ∧ h'.Disjoint hf ∧ m'.heap = h'.union hf ∧ post v h' := by
+  obtain ⟨o, st₁, m', h', hex, d', hm', v, hfin, hpost⟩ := hw m hf d hm
+  exact ⟨v, m', h', ⟨st₀, o, ⟨st₁, m'⟩, hinit, hex, hfin, rfl⟩, d', hm', hpost⟩
 
 end LC

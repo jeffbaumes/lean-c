@@ -39,11 +39,11 @@ theorem star_assoc {P Q R : HProp} {h : Heap} : ((P ∗ Q) ∗ R) h → (P ∗ (
 into a statement about one cell: if `hf a = some w`, then after the copy `m'.read a.1 a.2 = some w`.
 Hint: `obtain` the pieces of `copy_correct`; `m'.read a.1 a.2` is `m'.heap a` by definition
 (`show`), and `Heap.union_get_right` finishes it. -/
-theorem copy_preserves (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
+theorem copy_preserves (P : Program) (dst src : Ptr) (ss ds : List (BitVec 8)) (hlen : ss.length < 2 ^ 32)
     (hd : ds.length = ss.length) (h hf : Heap) (m : Mem)
     (hpre : (array dst (u8s ds) ∗ array src (u8s ss)) h) (d : h.Disjoint hf)
     (hm : m.heap = h.union hf) (a : Addr) (w : Val) (ha : hf a = some w) :
-    ∃ m', copy.Returns [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
+    ∃ m', copy.Returns P [.ptr .u8 dst, .ptr .u8 src, .u32 ss.length] m .unit m' ∧
       m'.read a.1 a.2 = some w := by
   sorry
 

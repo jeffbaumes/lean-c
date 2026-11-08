@@ -1,4 +1,5 @@
 import LC.Syntax
+import LC.Semantics
 
 /-!
 # Static type checking
@@ -48,12 +49,20 @@ def Expr.typeOf (Γ : TyEnv) : Expr → Option Ty
     | .int _ => some (.int t)
     | _ => none
 
-def Stmt.typeCheck (Γ : TyEnv) : Stmt → Bool
+/-- Function signatures (parameter types, return type), looked up by name. -/
+abbrev Sigs := Ident → Option (List Ty × Ty)
+
+def Program.sigs (P : Program) : Sigs :=
+  fun f => (P.find? f).map fun g => (g.params.map Prod.snd, g.ret)
+
+/-- `s.typeCheck Γ sg rt inLoop`: `s` is well-typed under locals `Γ` and callee signatures
+`sg`, inside a function returning `rt`. `inLoop` says whether `break` is allowed here. -/
+def Stmt.typeCheck (Γ : TyEnv) (sg : Sigs) (rt : Ty) (inLoop : Bool) : Stmt → Bool
   | .skip => true
   | .assign x e => (Γ x).isSome && Γ x == e.typeOf Γ
-  | .seq s₁ s₂ => s₁.typeCheck Γ && s₂.typeCheck Γ
-  | .ite c s₁ s₂ => c.typeOf Γ == some .bool && s₁.typeCheck Γ && s₂.typeCheck Γ
-  | .while c b => c.typeOf Γ == some .bool && b.typeCheck Γ
+  | .seq s₁ s₂ => s₁.typeCheck Γ sg rt inLoop && s₂.typeCheck Γ sg rt inLoop
+  | .ite c s₁ s₂ => c.typeOf Γ == some .bool && s₁.typeCheck Γ sg rt inLoop && s₂.typeCheck Γ sg rt inLoop
+  | .while c b => c.typeOf Γ == some .bool && b.typeCheck Γ sg rt true
   | .load x p i =>
     match p.typeOf Γ with
     | some (.ptr t) => i.typeOf Γ == some (.int .u32) && Γ x == some (.int t)
@@ -62,14 +71,23 @@ def Stmt.typeCheck (Γ : TyEnv) : Stmt → Bool
     match p.typeOf Γ with
     | some (.ptr t) => i.typeOf Γ == some (.int .u32) && e.typeOf Γ == some (.int t)
     | _ => false
+  | .brk => inLoop
+  | .ret e => e.typeOf Γ == some rt
+  | .call x f args =>
+    match sg f with
+    | some (ps, r) =>
+      args.map (·.typeOf Γ) == ps.map some &&
+        (match x with | some x => Γ x == some r | none => true)
+    | none => false
 
 def Fn.tyEnv (f : Fn) : TyEnv := fun x => (f.params ++ f.locals).lookup x
 
-/-- Well-formedness of a function: distinct names, a well-typed body, and a result of the declared type. -/
-def Fn.typeCheck (f : Fn) : Bool :=
+/-- Well-formedness of a function inside program `P` (default: no callees): distinct names,
+a well-typed body, and a result of the declared type. -/
+def Fn.typeCheck (f : Fn) (P : Program := []) : Bool :=
   let names := (f.params ++ f.locals).map Prod.fst
   names.eraseDups.length == names.length &&
-  f.body.typeCheck f.tyEnv &&
+  f.body.typeCheck f.tyEnv P.sigs f.ret false &&
   f.result.typeOf f.tyEnv == some f.ret
 
 end LC
