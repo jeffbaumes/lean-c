@@ -6,3 +6,4 @@ import Examples.Hash
 import Examples.RingBuffer
 import Examples.Search
 import Examples.ParseU32
+import Examples.Auto

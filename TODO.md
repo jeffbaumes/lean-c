@@ -10,7 +10,11 @@ Today a verified function costs roughly 20–40 edit-and-check iterations, mostl
 
 ## Agent workflow
 
-- [ ] **`lc_auto`: one tactic for the routine part of a proof.** Chain the VC generator, `sep_simp`, store-fact propagation, `BitVec`→`Nat` normalisation and `omega`/`grind`/`bv_decide`. Goal: a proof is the invariants, the variant, and `lc_auto`, plus the occasional arithmetic lemma (see the proof-ergonomics items below).
+- [x] **`lc_auto`: one tactic for the routine part of a proof.** Done: `lc_auto`, `lc_while I μ` and `lc_call` ([docs/automation.md](docs/automation.md)). `array_sum` and `find_first` are now fully automatic, and `lower_bound`, `copy_u8` and `parse_u32` leave only the problem-specific lemmas. Follow-ups:
+  - Callees that own heap (`swpo_call`) in `lc_call`, and the ring buffer's custom `rb` predicate.
+  - `∗`-trees in a different order or shape (reordering, array split/join), towards a full `sep_simp`.
+  - Accessible names for the destructured invariant, so leftover goals are easier to close by hand.
+  - Invariant/variant annotations in the AST, so `lc_while` isn't needed (the VC-generator item below).
 - [ ] **Spec-first workflow with reference implementations.** Write the spec as a plain Lean function (e.g. `decVal`, a `List` queue) and prove that the LC code refines it. Before proving anything, `#eval` and property-test the reference: the spec is the one thing proofs can't check, and the thing a human reviews.
 - [ ] **`CLAUDE.md` plus an "LC program" skill.** The steps (spec → code → `lc check` → proof), the pitfalls (no Mathlib tactics: `set`, `ring_nf`, `tauto`, `by_contra`, `swap`; `BitVec` width reducibility; `rintro … rfl` renaming hypotheses), and a cookbook of proof patterns (rejoining branches with `rotate_left`/`all_goals`, calls via a callee spec, early return, loop variants, `star_get`/`star_update` through nested `∗`).
 - [ ] **`lake exe lc check <module>`.** One command: type-check, interpreter `#guard`s, a small low-priority difftest, and the build of the proofs, with a short readable summary. It gives an agent fast, unambiguous feedback.
@@ -19,8 +23,8 @@ Today a verified function costs roughly 20–40 edit-and-check iterations, mostl
 
 ## Proof ergonomics (biggest gap vs. other tools)
 
-- [ ] **`sep_simp` tactic.** Find the `array` that owns an address inside a `∗`-tree, read or update it, and re-prove the `array` fact for the new heap. That's about a third of every heap proof today (Charguéraud's `xsimp` is the model).
-- [ ] **Store-fact automation.** A tactic that carries `st.get x = some …` facts across assignments, and a `simp` set that turns `BitVec.ofNat` arithmetic into `Nat` arithmetic plus range side-conditions (`bv_sub`, `bv_udiv`, `bv_mul`, mods).
+- [ ] **`sep_simp` tactic.** (Partly in `lc_auto`: reads and writes of cells inside a `∗`-tree of arrays.) Find the `array` that owns an address inside a `∗`-tree, read or update it, and re-prove the `array` fact for the new heap. That's about a third of every heap proof today (Charguéraud's `xsimp` is the model).
+- [x] **Store-fact automation.** (In `lc_auto`.) A tactic that carries `st.get x = some …` facts across assignments, and a `simp` set that turns `BitVec.ofNat` arithmetic into `Nat` arithmetic plus range side-conditions (`bv_sub`, `bv_udiv`, `bv_mul`, mods).
 - [ ] **Verification-condition generator.** Loop invariants and variants as annotations, so a function's proof becomes "supply invariants, discharge pure VCs" (the Dafny/Velvet style). The printer ignores the annotations.
 - [ ] **SMT or `grind` backend for the pure VCs.** Most leftover goals are linear arithmetic plus bit-vectors. Try `grind`, `bv_decide`, or an SMT bridge (lean-auto / Loom's approach).
 - [ ] **Spec notation.** A `requires`/`ensures` front end that generates the `Fn.returns_of_swpo` boilerplate (the `suffices`/post-condition plumbing every proof repeats).

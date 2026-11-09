@@ -14,6 +14,7 @@ No `sorry`, no `native_decide`. MIT licensed.
 | C printer (promotion-safe, freestanding C11), differential testing against the interpreter under UBSan/ASan and `-O2` | printer tested, not proved | [docs/c-backend.md](docs/c-backend.md) |
 | Ring buffer proved against a queue model; the specs compose | proved, and C tested against the model | [docs/ring-buffer.md](docs/ring-buffer.md) |
 | Function calls with a modular call rule, `break`, early `return`; `.h` + `.c` output | proved | [docs/programs.md](docs/programs.md) |
+| `lc_auto`: one tactic for the routine part of a proof (VC generation, store facts, cells inside `∗`, `BitVec`→`Nat`, `omega`/`grind`) | five example specs re-proved with it | [docs/automation.md](docs/automation.md) |
 
 **Verified programs** ([Examples/](Examples)):
 - `parse_u32`, a decimal parser that calls a verified `is_digit` and detects overflow;
@@ -44,6 +45,7 @@ nice -n 19 lake exe lc ringtest 200 1
   - `Syntax`, `Semantics`, `Interp`, `Typing`, `TypingSound`, `Notation`, `Spec`.
   - `Logic/{Eval,Hoare,Sep}`: the program logics.
   - `Emit/C`: the C printer.
+  - `Auto`: the `lc_auto`, `lc_while` and `lc_call` tactics.
 - `Examples/`: verified (or interpreter-checked) programs, one per file.
 - `Tests/`: semantics tests (what is UB), printer stress functions, the difftest suite.
 - `Tools/Main.lean`: the `lc` executable (C emission, differential and model-based testing).
