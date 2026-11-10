@@ -49,7 +49,9 @@ def difftestFns : List Entry :=
    suite_entry% Examples.RingBuffer.rbPop,
    suite_entry% Examples.Search.findFirst,
    suite_entry% Examples.Search.lowerBound,
-   suite_entry% Examples.SpecFirst.isSorted]
+   suite_entry% Examples.SpecFirst.isSorted,
+   suite_entry% Examples.HashMap.hmPut,
+   suite_entry% Examples.HashMap.hmGet]
   ++ Tests.PrinterStress.all.map (fun f => { fn := f, module := "Tests.PrinterStress" })
   ++ [suite_entry% Examples.ParseU32.isDigit in Examples.ParseU32.prog,
       suite_entry% Examples.ParseU32.parseU32 in Examples.ParseU32.prog]
