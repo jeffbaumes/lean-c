@@ -1,0 +1,2 @@
+2026-11-09T22:55:39	10s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined tokenize.c test_tokenize.c -o t && ./t
+2026-11-09T22:55:53	9s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -ffreestanding -nostdlib -c tokenize.c -o /dev/null && cc -std=c11 -Wall -Wextra -Werror -O2 -fsanitize=address,undefined tokenize.c test_tokenize.c -o t2 && ./t2

@@ -1,0 +1,1 @@
+2026-11-09T22:55:35	3s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined crc32.c test_crc32.c -o t && ./t && cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 crc32.c test_crc32.c -o t2 && ./t2 && cc -std=c11 -Wall -Wextra -Werror -pedantic -ffreestanding -nostdlib -c crc32.c -o /dev/null && echo freestanding ok

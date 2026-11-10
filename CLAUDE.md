@@ -7,7 +7,7 @@ LC is a small C-like language deeply embedded in Lean 4, with a formal semantics
 ## Hard rules
 
 - **No `sorry`, no `native_decide`, no new axioms.** Every top-level theorem file ends with `#print axioms`; the only allowed axioms are `propext`, `Classical.choice`, `Quot.sound`.
-- **No dependencies.** No Mathlib, no Batteries. Core Lean only (toolchain in `lean-toolchain`). This rules out `set`, `ring_nf`, `linarith`, `norm_num`, `tauto`, `by_contra`, `push_neg`, `swap`, `use`, `aesop`, `interval_cases`, `fin_cases`. Core has `omega`, `grind`, `simp`, `bv_decide`, `decide`, `exists`, `by_cases`, `rcases`/`obtain`, `exact?`.
+- **No dependencies.** No Mathlib, no Batteries. Core Lean only (toolchain in `lean-toolchain`). This rules out `set`, `ring_nf`, `linarith`, `norm_num`, `tauto`, `by_contra`, `push_neg`, `swap`, `use`, `aesop`, `interval_cases`, `fin_cases`, and also `bv_decide`, which adds a native axiom (`._native.bv_decide.ax_*`). Core has `omega`, `grind`, `simp`, `decide`, `exists`, `by_cases`, `rcases`/`obtain`, `exact?`.
 - **MIT licence.** Don't copy code from GPL/LGPL projects (CompCert, VST); cite ideas instead.
 - **The C stays freestanding C11**: `<stdint.h>`, `<stdbool.h>`, `<limits.h>` only, no allocation, no libc.
 

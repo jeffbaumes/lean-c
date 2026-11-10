@@ -1,0 +1,16 @@
+2026-11-09T23:05:09	4s	exit=1	lake env lean Examples/HashMap.lean
+2026-11-09T23:05:19	3s	exit=1	lake build Examples.HashMap
+2026-11-09T23:05:22	0s	exit=1	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/t.lean
+2026-11-09T23:05:26	4s	exit=1	lake env lean Examples/HashMap.lean
+2026-11-09T23:05:36	5s	exit=0	lake env lean Examples/HashMap.lean
+2026-11-09T23:06:06	4s	exit=1	lake env lean Examples/HashMap.lean
+2026-11-09T23:06:24	4s	exit=1	lake env lean Examples/HashMap.lean
+2026-11-09T23:10:42	2s	exit=1	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/Pure.lean
+2026-11-09T23:11:17	3s	exit=1	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/Pure.lean
+2026-11-09T23:11:36	4s	exit=1	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/Pure.lean
+2026-11-09T23:11:49	5s	exit=1	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/Pure.lean
+2026-11-09T23:12:08	4s	exit=0	lake env lean /private/tmp/claude-501/-Users-jeff-code-lean-c/c3ac2c49-e14d-4252-8f98-d7eaa40ac997/scratchpad/Pure.lean
+2026-11-09T23:16:06	0s	exit=127	timeout 300 lake env lean scratch/T1.lean
+2026-11-09T23:19:23	6s	exit=1	lake env lean scratch/T1.lean
+2026-11-09T23:19:38	3s	exit=0	lake env lean scratch/T1.lean
+2026-11-09T23:19:51	5s	exit=0	lake env lean scratch/T1.lean

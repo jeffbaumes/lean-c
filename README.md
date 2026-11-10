@@ -17,6 +17,7 @@ No `sorry`, no `native_decide`. MIT licensed.
 | `lc_auto`: one tactic for the routine part of a proof (VC generation, store facts, cells inside `∗`, `BitVec`→`Nat`, `omega`/`grind`) | five example specs re-proved with it | [docs/automation.md](docs/automation.md) |
 | `lake exe lc check <module>`: build, `#guard`s, proofs, axioms, hygiene and a small difftest, summarised in one table | every example module passes | [docs/check.md](docs/check.md) |
 | Spec-first workflow: reference functions, property tests in `#guard` (`LC.Check`), refinement theorems | `is_sorted` written spec-first; `parse_u32` and `lower_bound` refine reference functions | [docs/spec-first.md](docs/spec-first.md) |
+| Benchmark: fresh sessions write five tasks as C + unit tests and as LC + proof | single-loop tasks 6–9× the C time; harder ones 21× or unfinished | [docs/benchmark.md](docs/benchmark.md) |
 
 **Verified programs** ([Examples/](Examples)):
 - `parse_u32`, a decimal parser that calls a verified `is_digit` and detects overflow;

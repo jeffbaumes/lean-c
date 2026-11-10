@@ -153,7 +153,7 @@ theorem countEq_refines (P : Program) (p : Ptr) (xs : List (BitVec 32)) (x : Bit
 
 ## Pitfalls
 
-- **Core Lean only.** No `set`, `ring_nf`, `linarith`, `norm_num`, `tauto`, `by_contra`, `push_neg`, `swap`, `use`, `interval_cases`. Use `omega`, `grind`, `simp`, `by_cases`, `exists`, `exfalso`, `rotate_left`, `Nat.lt_succ_iff_lt_or_eq`.
+- **Core Lean only.** No `set`, `ring_nf`, `linarith`, `norm_num`, `tauto`, `by_contra`, `push_neg`, `swap`, `use`, `interval_cases`. No `bv_decide` either: it adds a native axiom, which `#print axioms` and `lc check` reject. Use `omega`, `grind`, `simp`, `by_cases`, `exists`, `exfalso`, `rotate_left`, `Nat.lt_succ_iff_lt_or_eq`.
 - **`BitVec` widths.** `BitVec 32` and `BitVec IntTy.u32.bits` are equal by computation only; write values as `.int .u32 bv` or `nu32 k`, never `.int .u32 (… : BitVec IntTy.u32.bits)`. When `rw` says "motive is not type correct", use `simp only` instead.
 - **`rintro … rfl` / `obtain … rfl` renames.** Substitution keeps one side and drops the other, which can remove the variable you named (and later `‹_›` or names stop matching). Use `obtain rfl : i = k := by omega` with the direction you want, or keep the equation as a hypothesis.
 - **Wrap-around.** Store facts are `nu32 k` (= `BitVec.ofNat 32 k`). `lc_auto` turns in-range arithmetic into `Nat` only when it can prove the range with `omega`, so put the bound (`i ≤ xs.length`, `hlen : xs.length < 2 ^ 32`, `acc < 2 ^ 32`) in the invariant or hypotheses. Leftover `% 2 ^ 32` terms mean a missing bound.

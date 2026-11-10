@@ -27,7 +27,14 @@ Today a verified function costs roughly 20–40 edit-and-check iterations, mostl
   - Separate errors in imported modules from errors in the module itself, and stop at the first broken import.
   - Count `#guard`s from elaboration instead of a token scan (a small `#lc_guard` command, or an info message per guard).
   - A `--json` output for agents, and a `check --all`.
-- [ ] **Benchmark the north star.** Pick 4–5 tasks (base64, CRC32, UTF-8 validation, a tokenizer, a bounded hash map). Have fresh sessions build each in C with unit tests and in LC with proofs, record time, tokens and iterations, and track the ratio.
+- [x] **Benchmark the north star.** Done: [docs/benchmark.md](docs/benchmark.md), harness in [bench/](bench). Five tasks, fresh sessions, C + unit tests vs. LC + proof. Single-loop buffer functions (crc32, utf8_valid) are proved at 6–9× the C time; base64 (a call, two buffers) at 21×; tokenize and the hash map were stopped unfinished after about 30 minutes. The C arm passed its tests first time on every task and agrees with the verified C on 10⁶ random inputs. Follow-ups, from what cost the LC runs their iterations:
+  - `lc_auto`: evaluate `&&.`/`||.` in conditions (lemmas exist on the tokenize branch), and fail loudly when it can't instead of leaving a raw `swpo` goal.
+  - Pass the extras given to `lc_while` through to `lc_side`/`lc_disch`, so store bounds see user length lemmas.
+  - Keep user-visible names: no `subst_vars` of variables the invariant mentions, accessible heap/counter names (with the follow-up above), and a nested-loop recipe in the cookbook.
+  - Feedback when slow: a per-leaf time cap in `lc_auto`, streamed trace, and a fast proof-only check (skip `#guard`s).
+  - Cookbook: invariant witnesses as functions of store values; opaque `f xs i` prefix functions with `_succ` lemmas; `simp` string tables before `decide`; `lc_call` needs `swpo`; a table of the shapes `lc_auto` normalises expressions to.
+  - Merge the finished examples (crc32, utf8_valid, base64) from their branches; finish tokenize and the hash map as the hard cases, and re-run the benchmark after each round of tooling.
+  - `const` pointer parameters in LC, so emitted prototypes match C practice.
 - [ ] **Templates.** Starter files for common shapes (buffer loop, search, parser with early exit, stateful structure over caller storage) with the spec, invariant and proof skeleton filled in.
 
 ## Proof ergonomics (biggest gap vs. other tools)

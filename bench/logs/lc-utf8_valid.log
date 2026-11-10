@@ -1,0 +1,15 @@
+2026-11-09T22:56:43	1s	exit=0	lake env lean scratch_t.lean
+2026-11-09T22:57:18	4s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T22:57:34	15s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T22:57:53	12s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T22:58:09	13s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T22:58:27	17s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T23:00:01	22s	exit=1	lake env lean Examples/Utf8.lean
+2026-11-09T23:00:40	28s	exit=1	lake env lean Examples/Utf8.lean
+2026-11-09T23:01:16	22s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T23:01:44	16s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T23:02:05	15s	exit=0	lake env lean Examples/Utf8.lean
+2026-11-09T23:02:28	31s	exit=0	lake build
+2026-11-09T23:02:59	2s	exit=0	lake exe lc emit generated/lc_examples
+2026-11-09T23:03:03	13s	exit=0	nice -n 19 lake exe lc check Examples.Utf8
+2026-11-09T23:03:16	32s	exit=0	nice -n 19 lake exe lc difftest 100 1 utf8_valid

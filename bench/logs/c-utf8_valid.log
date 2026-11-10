@@ -1,0 +1,2 @@
+2026-11-09T22:55:51	23s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined utf8_valid.c test_utf8_valid.c -o t && time ./t
+2026-11-09T22:56:18	4s	exit=0	sh -c cc -std=c11 -ffreestanding -Wall -Wextra -Werror -pedantic -c utf8_valid.c -o /dev/null && cc -std=c11 -O2 -Wall -Wextra -Werror utf8_valid.c test_utf8_valid.c -o t2 && ./t2

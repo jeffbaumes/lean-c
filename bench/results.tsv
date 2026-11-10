@@ -1,0 +1,11 @@
+arm	task	status	tokens	tool_uses	minutes	agent
+c	crc32	done	56106	3	0.7	a48f804226bbdfa6f
+c	base64_encode	done	58459	4	1.0	aa3144fb0f0e7a9f0
+c	tokenize	done	57384	4	1.1	a28c279b04ba395ef
+c	utf8_valid	done	59082	4	1.5	af5e7001c86ad1ad5
+c	hashmap	done	77494	12	6.7	ac88663caeedd4e96
+lc	crc32	done	110357	23	6.6	afd9304a149971eb9
+lc	utf8_valid	done	127241	26	9.0	a463677893cf0d73b
+lc	base64_encode	done	168592	56	21.0	af20b0bbd644c04ea
+lc	hashmap	partial	190109	73	29.0	acd13f137d8365c3d
+lc	tokenize	partial	251634	94	30.6	a8fb1b4bd2840809b

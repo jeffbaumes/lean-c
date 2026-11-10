@@ -1,0 +1,3 @@
+2026-11-09T22:59:22	5s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined -fno-sanitize-recover=all hashmap.c test_hashmap.c -o t && time ./t
+2026-11-09T22:59:37	40s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined -fno-sanitize-recover=all hashmap.c test_hashmap.c -o t && ./t && mut/run.sh
+2026-11-09T23:00:43	30s	exit=0	sh -c cc -std=c11 -Wall -Wextra -Werror -pedantic -g -fsanitize=address,undefined -fno-sanitize-recover=all hashmap.c test_hashmap.c -o t && ./t && mut/run.sh
