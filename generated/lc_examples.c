@@ -203,6 +203,73 @@ uint32_t crc32(uint8_t *p, uint32_t n) {
   return (c ^ 4294967295u);
 }
 
+bool utf8_valid(uint8_t *p, uint32_t n) {
+  uint32_t i;
+  uint32_t need;
+  uint8_t lo;
+  uint8_t hi;
+  uint8_t b;
+  i = 0u;
+  need = 0u;
+  lo = ((uint8_t)128u);
+  hi = ((uint8_t)191u);
+  while (i < n) {
+    b = p[i];
+    if (need == 0u) {
+      if (b < ((uint8_t)128u)) {
+      } else {
+        if (b < ((uint8_t)194u)) {
+          return false;
+        } else {
+          if (b < ((uint8_t)224u)) {
+            need = 1u;
+            lo = ((uint8_t)128u);
+            hi = ((uint8_t)191u);
+          } else {
+            if (b < ((uint8_t)240u)) {
+              need = 2u;
+              lo = ((uint8_t)128u);
+              hi = ((uint8_t)191u);
+              if (b == ((uint8_t)224u)) {
+                lo = ((uint8_t)160u);
+              }
+              if (b == ((uint8_t)237u)) {
+                hi = ((uint8_t)159u);
+              }
+            } else {
+              if (b < ((uint8_t)245u)) {
+                need = 3u;
+                lo = ((uint8_t)128u);
+                hi = ((uint8_t)191u);
+                if (b == ((uint8_t)240u)) {
+                  lo = ((uint8_t)144u);
+                }
+                if (b == ((uint8_t)244u)) {
+                  hi = ((uint8_t)143u);
+                }
+              } else {
+                return false;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (b < lo) {
+        return false;
+      }
+      if (hi < b) {
+        return false;
+      }
+      need = (need - 1u);
+      lo = ((uint8_t)128u);
+      hi = ((uint8_t)191u);
+    }
+    i = (i + 1u);
+  }
+  return (need == 0u);
+}
+
 uint16_t mul16(uint16_t a, uint16_t b) {
   return ((uint16_t)((uint32_t)a * (uint32_t)b));
 }
@@ -293,4 +360,72 @@ bool parse_u32(uint8_t *p, uint32_t n, uint32_t *out) {
   }
   out[0u] = acc;
   return true;
+}
+
+uint8_t b64_sym(uint8_t x) {
+  uint8_t y;
+  y = ((uint8_t)((uint32_t)x & (uint32_t)((uint8_t)63u)));
+  if (y < ((uint8_t)26u)) {
+    return ((uint8_t)((uint32_t)y + (uint32_t)((uint8_t)65u)));
+  }
+  if (y < ((uint8_t)52u)) {
+    return ((uint8_t)((uint32_t)y + (uint32_t)((uint8_t)71u)));
+  }
+  if (y < ((uint8_t)62u)) {
+    return ((uint8_t)((uint32_t)y - (uint32_t)((uint8_t)4u)));
+  }
+  if (y == ((uint8_t)62u)) {
+    return ((uint8_t)43u);
+  }
+  return ((uint8_t)47u);
+}
+
+uint32_t base64_encode(uint8_t *in, uint32_t n, uint8_t *out) {
+  uint32_t i;
+  uint32_t j;
+  uint8_t a;
+  uint8_t b;
+  uint8_t c;
+  uint8_t s;
+  i = 0u;
+  j = 0u;
+  while (3u <= (n - i)) {
+    a = in[i];
+    b = in[(i + 1u)];
+    c = in[(i + 2u)];
+    s = b64_sym(((uint8_t)((uint32_t)a >> (uint32_t)((uint8_t)2u))));
+    out[j] = s;
+    s = b64_sym(((uint8_t)((uint32_t)((uint8_t)((uint32_t)((uint8_t)((uint32_t)a & (uint32_t)((uint8_t)3u))) << (uint32_t)((uint8_t)4u))) | (uint32_t)((uint8_t)((uint32_t)b >> (uint32_t)((uint8_t)4u))))));
+    out[(j + 1u)] = s;
+    s = b64_sym(((uint8_t)((uint32_t)((uint8_t)((uint32_t)((uint8_t)((uint32_t)b & (uint32_t)((uint8_t)15u))) << (uint32_t)((uint8_t)2u))) | (uint32_t)((uint8_t)((uint32_t)c >> (uint32_t)((uint8_t)6u))))));
+    out[(j + 2u)] = s;
+    s = b64_sym(c);
+    out[(j + 3u)] = s;
+    i = (i + 3u);
+    j = (j + 4u);
+  }
+  if ((n - i) == 1u) {
+    a = in[i];
+    s = b64_sym(((uint8_t)((uint32_t)a >> (uint32_t)((uint8_t)2u))));
+    out[j] = s;
+    s = b64_sym(((uint8_t)((uint32_t)((uint8_t)((uint32_t)a & (uint32_t)((uint8_t)3u))) << (uint32_t)((uint8_t)4u))));
+    out[(j + 1u)] = s;
+    out[(j + 2u)] = ((uint8_t)61u);
+    out[(j + 3u)] = ((uint8_t)61u);
+    j = (j + 4u);
+  } else {
+    if ((n - i) == 2u) {
+      a = in[i];
+      b = in[(i + 1u)];
+      s = b64_sym(((uint8_t)((uint32_t)a >> (uint32_t)((uint8_t)2u))));
+      out[j] = s;
+      s = b64_sym(((uint8_t)((uint32_t)((uint8_t)((uint32_t)((uint8_t)((uint32_t)a & (uint32_t)((uint8_t)3u))) << (uint32_t)((uint8_t)4u))) | (uint32_t)((uint8_t)((uint32_t)b >> (uint32_t)((uint8_t)4u))))));
+      out[(j + 1u)] = s;
+      s = b64_sym(((uint8_t)((uint32_t)((uint8_t)((uint32_t)b & (uint32_t)((uint8_t)15u))) << (uint32_t)((uint8_t)2u))));
+      out[(j + 2u)] = s;
+      out[(j + 3u)] = ((uint8_t)61u);
+      j = (j + 4u);
+    }
+  }
+  return j;
 }

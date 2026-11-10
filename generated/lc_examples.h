@@ -20,6 +20,7 @@ uint32_t find_first(uint32_t *a, uint32_t n, uint32_t x);
 uint32_t lower_bound(uint32_t *a, uint32_t n, uint32_t x);
 bool is_sorted(uint32_t *a, uint32_t n);
 uint32_t crc32(uint8_t *p, uint32_t n);
+bool utf8_valid(uint8_t *p, uint32_t n);
 uint16_t mul16(uint16_t a, uint16_t b);
 uint8_t add8(uint8_t a, uint8_t b);
 uint8_t sub8(uint8_t a, uint8_t b);
@@ -37,5 +38,7 @@ int8_t cast_i8(uint32_t a);
 int64_t cast_i64(uint32_t a);
 bool is_digit(uint8_t c);
 bool parse_u32(uint8_t *p, uint32_t n, uint32_t *out);
+uint8_t b64_sym(uint8_t x);
+uint32_t base64_encode(uint8_t *in, uint32_t n, uint8_t *out);
 
 #endif /* LC_EXAMPLES_H */

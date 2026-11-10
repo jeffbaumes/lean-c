@@ -54,7 +54,9 @@ def difftestFns : List Entry :=
    suite_entry% Examples.Utf8.utf8Valid]
   ++ Tests.PrinterStress.all.map (fun f => { fn := f, module := "Tests.PrinterStress" })
   ++ [suite_entry% Examples.ParseU32.isDigit in Examples.ParseU32.prog,
-      suite_entry% Examples.ParseU32.parseU32 in Examples.ParseU32.prog]
+      suite_entry% Examples.ParseU32.parseU32 in Examples.ParseU32.prog,
+      suite_entry% Examples.Base64.b64Sym in Examples.Base64.prog,
+      suite_entry% Examples.Base64.base64Encode in Examples.Base64.prog]
 
 #guard (difftestFns.find? (·.fn.name == "gcd")).map (·.module) == some "Examples.Arith"
 

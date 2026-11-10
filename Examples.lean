@@ -11,3 +11,4 @@ import Examples.SpecFirst
 import Examples.Refinement
 import Examples.Crc32
 import Examples.Utf8
+import Examples.Base64
