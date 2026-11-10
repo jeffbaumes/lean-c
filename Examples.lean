@@ -9,6 +9,8 @@ import Examples.ParseU32
 import Examples.Auto
 import Examples.SpecFirst
 import Examples.Refinement
+import Examples.Tokenize
 import Examples.Crc32
 import Examples.Utf8
 import Examples.Base64
+import Examples.Tokenize

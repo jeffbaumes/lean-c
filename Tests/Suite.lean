@@ -51,7 +51,8 @@ def difftestFns : List Entry :=
    suite_entry% Examples.Search.lowerBound,
    suite_entry% Examples.SpecFirst.isSorted,
    suite_entry% Examples.Crc32.crc32,
-   suite_entry% Examples.Utf8.utf8Valid]
+   suite_entry% Examples.Utf8.utf8Valid,
+   suite_entry% Examples.Tokenize.tokenize]
   ++ Tests.PrinterStress.all.map (fun f => { fn := f, module := "Tests.PrinterStress" })
   ++ [suite_entry% Examples.ParseU32.isDigit in Examples.ParseU32.prog,
       suite_entry% Examples.ParseU32.parseU32 in Examples.ParseU32.prog,

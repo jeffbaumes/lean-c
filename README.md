@@ -24,6 +24,7 @@ No `sorry`, no `native_decide`. MIT licensed.
 - binary search (`lower_bound`) and linear search with `break` (`find_first`);
 - `is_sorted`, written spec-first and proved to return exactly its reference function's value;
 - `crc32` (bitwise CRC-32), `utf8_valid` (Unicode Table 3-7) and `base64_encode` (RFC 4648), each proved to refine a reference function; written by fresh sessions during the [benchmark](docs/benchmark.md);
+- `tokenize`, which splits a buffer at whitespace and writes token starts and lengths into two caller arrays (up to a capacity), proved to refine a declarative reference;
 - ring-buffer push/pop;
 - `sum_to`, array sum and `copy_u8` (memcpy for separate buffers);
 - interpreter-checked `gcd`, `popcount` and FNV-1a.

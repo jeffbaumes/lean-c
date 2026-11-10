@@ -41,7 +41,7 @@ When it can't execute a statement, it fails with `lc_auto: stuck at <statement>`
 - **The heap (a small `sep_simp`).** A load `p[i]` searches the `∗`-trees of `array`s in context for the array that owns the cell. A store `p[i] = e` rewrites that fact to one about the updated heap, so later loads see the new value. A final `∗` postcondition is matched part by part; only the equalities of cell lists are left over.
 - **`BitVec` to `Nat`.** In-range `BitVec.ofNat` arithmetic becomes `Nat` arithmetic: `bv_sub`, `bv_udiv`, `bv_umod`, `bv_mul`, `x % 2^w = x`, `ofNat a = ofNat b ↔ a = b`, and `==`/`!=` become `decide (a = b)`. The range conditions are discharged by `omega`. You can add your own lemmas with `attribute [lc_simp] …`.
 - **Existential witnesses.** In `∃ i, … ∧ st'.get "i" = some (nu32 i) ∧ …` the witness comes from unifying the store fact with what the store actually holds.
-- **Leaves**, closed with `rfl`, `assumption`, `omega`, `simp`, and then `grind`.
+- **Leaves**, closed with `rfl`, `assumption`, `omega`, `simp`, and then `grind`. Before `grind`, a leaf is simplified once more with the plain hypotheses in context (branch conditions and bounds, anything not about a store or heap), and an `if` in it is decided when `omega` can prove or refute its condition.
 
 ## Results on the examples
 

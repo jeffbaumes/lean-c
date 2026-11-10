@@ -137,6 +137,14 @@ def Expr.toC (Γ : TyEnv) : Expr → Except String String
 
 def cIndent (n : Nat) : String := "".pushn ' ' (2 * n)
 
+/-- An `if`/`while` condition. Compound expressions already print with outer parentheses; a
+bare variable or literal (`if (intok)`) needs them added. -/
+def Expr.condToC (Γ : TyEnv) (c : Expr) : Except String String := do
+  let s ← c.toC Γ
+  match c with
+  | .var _ | .lit _ => return s!"({s})"
+  | _ => return s
+
 def Stmt.toC (Γ : TyEnv) (d : Nat) : Stmt → Except String String
   | .skip => return ""
   | .assign x e => return s!"{cIndent d}{← cIdent x} = {← e.toC Γ};\n"
@@ -144,8 +152,8 @@ def Stmt.toC (Γ : TyEnv) (d : Nat) : Stmt → Except String String
   | .ite c s₁ s₂ => do
     let e ← s₂.toC Γ (d + 1)
     let els := if e.isEmpty then "" else s!" else \{\n{e}{cIndent d}}"
-    return s!"{cIndent d}if {← c.toC Γ} \{\n{← s₁.toC Γ (d + 1)}{cIndent d}}{els}\n"
-  | .while c b => return s!"{cIndent d}while {← c.toC Γ} \{\n{← b.toC Γ (d + 1)}{cIndent d}}\n"
+    return s!"{cIndent d}if {← c.condToC Γ} \{\n{← s₁.toC Γ (d + 1)}{cIndent d}}{els}\n"
+  | .while c b => return s!"{cIndent d}while {← c.condToC Γ} \{\n{← b.toC Γ (d + 1)}{cIndent d}}\n"
   | .load x p i => return s!"{cIndent d}{← cIdent x} = {← p.toC Γ}[{← i.toC Γ}];\n"
   | .store p i e => return s!"{cIndent d}{← p.toC Γ}[{← i.toC Γ}] = {← e.toC Γ};\n"
   | .brk => return s!"{cIndent d}break;\n"

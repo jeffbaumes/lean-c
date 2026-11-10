@@ -43,6 +43,17 @@ Grouped by cause. The number in brackets is how many of the five runs hit it.
 
 Smaller: a goal left open that was literally a hypothesis (crc32); `if_pos`/`if_neg` deprecated in this toolchain (utf8); every check re-runs the slow `#guard`s, so proof iterations are slower than they need to be (hashmap); LC has no `const`, so the emitted prototypes take `uint8_t *` (crc32, base64).
 
+## After the first round of tooling
+
+The `lc_auto` fixes from the table above (`&&.`/`||.`, errors that name the stuck statement, extras in side conditions, kept and named variables, a heartbeat budget) went in on 2026-11-10. Then tokenize was finished, starting from the stopped run's file ([Examples/Tokenize.lean](../Examples/Tokenize.lean)). This was the same session that wrote the fixes, not a fresh one, so it isn't a comparable measurement.
+
+- With the fixes alone, `lc_auto` left 40 goals where the stopped run had used 4 lines of `simp_all` and still had 10. The goals mixed two forms of the whitespace test: `xs[i] = 32#8 ∨ …` from the code, `isWs xs[i]` from the reference.
+- Two lemmas that fold the code's test back into `isWs` (`isWs_fold`, `isWs_fold_not`), passed as extras, made the forms agree.
+- Two more general changes to `lc_auto` closed the rest: leaves are also simplified with the plain hypotheses in context (branch conditions, bounds), and `if`s are decided by `omega` (`ite_eq_left`/`ite_eq_right` with `lc_disch`). With the reference's lemmas `fill_snoc` and `tokensRef_at_end` as extras, the proof is `lc_auto` and one `lc_while`.
+- The difftest then found a printer bug: a condition that is a bare variable printed as `if intok {`. No earlier example had one. Fixed in `LC/Emit/C.lean`, with a test in `Tests/PrinterStress.lean`.
+
+The hashmap is still unfinished, and the benchmark hasn't been re-run with fresh sessions.
+
 ## Limits
 
 - One run per cell, so the ratios are rough. Expect noise of about ±2×.
@@ -52,4 +63,4 @@ Smaller: a goal left open that was literally a hypothesis (crc32); `if_pos`/`if_
 
 ## Re-running
 
-Write a task spec in `bench/tasks/`, start two fresh sessions with the prompts in [bench/prompts.md](../bench/prompts.md) (route commands through `bench/run.sh <arm>-<task>`), and add a row to `bench/results.tsv`. The completed LC examples (`Examples/Crc32.lean`, `Utf8.lean`, `Base64.lean`) were produced on side branches and are candidates for merging into `Examples/`.
+Write a task spec in `bench/tasks/`, start two fresh sessions with the prompts in [bench/prompts.md](../bench/prompts.md) (route commands through `bench/run.sh <arm>-<task>`), and add a row to `bench/results.tsv`. The completed LC examples (`Examples/Crc32.lean`, `Utf8.lean`, `Base64.lean`, and `Tokenize.lean`, finished afterwards) are merged into `Examples/`.

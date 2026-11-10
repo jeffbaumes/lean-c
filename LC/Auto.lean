@@ -27,7 +27,9 @@ really about the problem. Everything else is bookkeeping, and `lc_auto` does it:
   range side conditions with `omega`.
 * **Pure goals.** Existential witnesses are found by unifying equations such as
   `(st.set "i" (nu32 (i+1))).get "i" = some (nu32 ?k)`. The leaves are closed with `rfl`,
-  `assumption`, `omega`, `simp`, and finally `grind`. What can't be closed is left, simplified.
+  `assumption`, `omega`, `simp`, then `simp` again with the plain hypotheses in context (branch
+  conditions, bounds) deciding `if`s by `omega`, and finally `grind`. What can't be closed is
+  left, simplified.
 
 `lc_auto [foo, bar]` also unfolds or rewrites with `foo`, `bar`: pass your invariant, variant
 and any spec lemmas (like `psum_succ`). The side-condition dischargers see them too.
@@ -251,6 +253,27 @@ def storeFacts : TacticM (Array Term) := withMainContext do
     if let some (_, lhs, _) := ty.eq? then
       if lhs.isAppOf ``LC.Store.get then
         out := out.push (← exprTerm d.toExpr)
+  return out
+
+/-- Plain facts in context: propositions that mention no store, heap or memory (branch
+conditions such as `isWs c = true`, bounds such as `k < cap`). Leaves that the other closers
+can't do are simplified with these too. -/
+def plainFacts : TacticM (Array Term) := withMainContext do
+  let bad : Array Name := #[``LC.Store, ``LC.Heap, ``LC.Mem, ``LC.HProp, ``LC.SProp]
+  let mentionsBad (e : Lean.Expr) : MetaM Bool := do
+    if (e.find? fun x => x.isConst && bad.contains x.constName!).isSome then return true
+    for fv in (collectFVars {} e).fvarIds do
+      let t ← instantiateMVars (← fv.getType)
+      if (t.find? fun x => x.isConst && bad.contains x.constName!).isSome then return true
+    return false
+  let mut out := #[]
+  for d in ← getLCtx do
+    if d.isImplementationDetail || d.isLet then continue
+    let ty ← instantiateMVars d.type
+    unless ← isProp ty do continue
+    if ty.isAppOf ``Eq && (ty.getArg! 1).isFVar && (ty.getArg! 2).isFVar then continue
+    if ← mentionsBad ty then continue
+    out := out.push (← exprTerm d.toExpr)
   return out
 
 /-- Heap facts in context. -/
@@ -800,6 +823,24 @@ partial def leafCore (extras : Array Term) : TacticM Unit := withMainContext do
     evalTactic (← `(tactic| first | with_reducible assumption | lc_omega | (simp (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat] <;> lc_omega)))
     return
   catch _ => s.restore
+  -- the same, also rewriting with the plain hypotheses (branch conditions, bounds), and
+  -- deciding `if`s whose condition `lc_disch` (`omega`) can prove or refute
+  let plain ← plainFacts
+  unless plain.isEmpty do
+    let pargs ← mkSimpArgs (facts ++ extras ++ plain)
+    let s1 ← saveState
+    try
+      evalTactic (← `(tactic|
+        simp +zetaDelta (disch := lc_disch [$extras,*])
+          [lc_simp, -BitVec.ofNat_toNat, ite_eq_left, ite_eq_right, $pargs,*]))
+      for g in ← getGoals do
+        setGoals [g]
+        if ← tryTac (evalTactic (← `(tactic| exact rfl))) then continue
+        if ← tryTac (evalTactic (← `(tactic| with_reducible assumption))) then continue
+        evalTactic (← `(tactic| first | lc_omega | (intros; lc_omega)))
+      setGoals []
+      return
+    catch _ => s1.restore
   if ← tryTac (evalTactic (← `(tactic| set_option maxHeartbeats 40000 in grind))) then return
   -- partial progress is still progress
   _ ← tryTac (evalTactic (← `(tactic|

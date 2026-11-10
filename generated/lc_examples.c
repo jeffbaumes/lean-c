@@ -270,6 +270,46 @@ bool utf8_valid(uint8_t *p, uint32_t n) {
   return (need == 0u);
 }
 
+uint32_t tokenize(uint8_t *p, uint32_t n, uint32_t *starts, uint32_t *lens, uint32_t cap) {
+  uint32_t i;
+  uint32_t cnt;
+  uint32_t st;
+  bool intok;
+  uint8_t c;
+  i = 0u;
+  cnt = 0u;
+  st = 0u;
+  intok = false;
+  while (i < n) {
+    c = p[i];
+    if ((((c == ((uint8_t)32u)) || (c == ((uint8_t)9u))) || (c == ((uint8_t)10u))) || (c == ((uint8_t)13u))) {
+      if (intok) {
+        if (cnt < cap) {
+          starts[cnt] = st;
+          lens[cnt] = (i - st);
+        }
+        cnt = (cnt + 1u);
+        intok = false;
+      }
+    } else {
+      if (intok) {
+      } else {
+        st = i;
+        intok = true;
+      }
+    }
+    i = (i + 1u);
+  }
+  if (intok) {
+    if (cnt < cap) {
+      starts[cnt] = st;
+      lens[cnt] = (i - st);
+    }
+    cnt = (cnt + 1u);
+  }
+  return cnt;
+}
+
 uint16_t mul16(uint16_t a, uint16_t b) {
   return ((uint16_t)((uint32_t)a * (uint32_t)b));
 }

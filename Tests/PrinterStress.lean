@@ -38,10 +38,20 @@ def ltI8 : Fn := { binFn "lt_i8" .i8 .i8 (.u32 0) with ret := .bool, result := v
 def castU8 := unFn "cast_u8" .i32 .u8 (.cast .u8 (v "a"))
 def castI8 := unFn "cast_i8" .u32 .i8 (.cast .i8 (v "a"))
 def castI64 := unFn "cast_i64" .u32 .i64 (.cast .i64 (v "a") * .i64 (-1))
+-- A condition that is a bare variable or literal still needs C's parentheses: `if (t)`.
+def condVar : Fn :=
+  { name := "cond_var", params := [("a", .int .u32)], locals := [("t", .bool), ("r", .int .u32)],
+    body := .block ["t" ::= v "a" <. .u32 10, "r" ::= .u32 0,
+      .ite (v "t") ("r" ::= v "a") .skip, .while .ff .skip],
+    ret := .int .u32, result := v "r" }
+
+#guard match cTranslationUnit [condVar] with
+  | .ok s => (s.splitOn "if (t) {").length == 2 && (s.splitOn "while (false) {").length == 2
+  | .error _ => false
 
 def all : List Fn :=
   [mul16, add8, sub8, shl8, neg8, not16, mulI16, addI32, divI32, modI32, negI64, ltI8,
-   castU8, castI8, castI64]
+   castU8, castI8, castI64, condVar]
 
 #guard all.all Fn.typeCheck
 #guard cKeywords.all (fun k => !cValidIdent k)
