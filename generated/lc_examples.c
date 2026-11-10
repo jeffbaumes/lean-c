@@ -183,6 +183,26 @@ bool is_sorted(uint32_t *a, uint32_t n) {
   return true;
 }
 
+uint32_t crc32(uint8_t *p, uint32_t n) {
+  uint32_t i;
+  uint32_t j;
+  uint8_t b;
+  uint32_t c;
+  c = 4294967295u;
+  i = 0u;
+  while (i < n) {
+    b = p[i];
+    c = (c ^ ((uint32_t)b));
+    j = 0u;
+    while (j < 8u) {
+      c = ((c >> 1u) ^ (3988292384u & (0u - (c & 1u))));
+      j = (j + 1u);
+    }
+    i = (i + 1u);
+  }
+  return (c ^ 4294967295u);
+}
+
 uint16_t mul16(uint16_t a, uint16_t b) {
   return ((uint16_t)((uint32_t)a * (uint32_t)b));
 }
