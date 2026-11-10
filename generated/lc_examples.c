@@ -183,6 +183,73 @@ bool is_sorted(uint32_t *a, uint32_t n) {
   return true;
 }
 
+bool utf8_valid(uint8_t *p, uint32_t n) {
+  uint32_t i;
+  uint32_t need;
+  uint8_t lo;
+  uint8_t hi;
+  uint8_t b;
+  i = 0u;
+  need = 0u;
+  lo = ((uint8_t)128u);
+  hi = ((uint8_t)191u);
+  while (i < n) {
+    b = p[i];
+    if (need == 0u) {
+      if (b < ((uint8_t)128u)) {
+      } else {
+        if (b < ((uint8_t)194u)) {
+          return false;
+        } else {
+          if (b < ((uint8_t)224u)) {
+            need = 1u;
+            lo = ((uint8_t)128u);
+            hi = ((uint8_t)191u);
+          } else {
+            if (b < ((uint8_t)240u)) {
+              need = 2u;
+              lo = ((uint8_t)128u);
+              hi = ((uint8_t)191u);
+              if (b == ((uint8_t)224u)) {
+                lo = ((uint8_t)160u);
+              }
+              if (b == ((uint8_t)237u)) {
+                hi = ((uint8_t)159u);
+              }
+            } else {
+              if (b < ((uint8_t)245u)) {
+                need = 3u;
+                lo = ((uint8_t)128u);
+                hi = ((uint8_t)191u);
+                if (b == ((uint8_t)240u)) {
+                  lo = ((uint8_t)144u);
+                }
+                if (b == ((uint8_t)244u)) {
+                  hi = ((uint8_t)143u);
+                }
+              } else {
+                return false;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (b < lo) {
+        return false;
+      }
+      if (hi < b) {
+        return false;
+      }
+      need = (need - 1u);
+      lo = ((uint8_t)128u);
+      hi = ((uint8_t)191u);
+    }
+    i = (i + 1u);
+  }
+  return (need == 0u);
+}
+
 uint16_t mul16(uint16_t a, uint16_t b) {
   return ((uint16_t)((uint32_t)a * (uint32_t)b));
 }

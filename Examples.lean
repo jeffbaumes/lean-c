@@ -9,3 +9,4 @@ import Examples.ParseU32
 import Examples.Auto
 import Examples.SpecFirst
 import Examples.Refinement
+import Examples.Utf8
