@@ -146,3 +146,6 @@ theorem sumTo_no_ub (P : Program) (n : Nat) (hn : n < 2 ^ 32) (m : Mem) (fuel : 
 
 
 end Examples.SumTo
+
+#print axioms Examples.SumTo.sumTo_10
+#print axioms Examples.SumTo.sumTo_correct

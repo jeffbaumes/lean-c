@@ -15,6 +15,7 @@ No `sorry`, no `native_decide`. MIT licensed.
 | Ring buffer proved against a queue model; the specs compose | proved, and C tested against the model | [docs/ring-buffer.md](docs/ring-buffer.md) |
 | Function calls with a modular call rule, `break`, early `return`; `.h` + `.c` output | proved | [docs/programs.md](docs/programs.md) |
 | `lc_auto`: one tactic for the routine part of a proof (VC generation, store facts, cells inside `∗`, `BitVec`→`Nat`, `omega`/`grind`) | five example specs re-proved with it | [docs/automation.md](docs/automation.md) |
+| `lake exe lc check <module>`: build, `#guard`s, proofs, axioms, hygiene and a small difftest, summarised in one table | every example module passes | [docs/check.md](docs/check.md) |
 | Spec-first workflow: reference functions, property tests in `#guard` (`LC.Check`), refinement theorems | `is_sorted` written spec-first; `parse_u32` and `lower_bound` refine reference functions | [docs/spec-first.md](docs/spec-first.md) |
 
 **Verified programs** ([Examples/](Examples)):
@@ -31,6 +32,12 @@ Requires [elan](https://github.com/leanprover/elan). The toolchain is pinned in 
 
 ```bash
 lake build
+```
+
+Check one module (build, `#guard`s, proofs, axioms, and a small difftest of its functions):
+
+```bash
+lake exe lc check Examples.SpecFirst
 ```
 
 Emit C and run the testers. They need a system C compiler; override it with `LC_CC`.
@@ -51,7 +58,7 @@ nice -n 19 lake exe lc ringtest 200 1
   - `Check`: random generators and `forAll`, for property tests in `#guard`.
 - `Examples/`: verified (or interpreter-checked) programs, one per file.
 - `Tests/`: semantics tests (what is UB), printer stress functions, the difftest suite.
-- `Tools/Main.lean`: the `lc` executable (C emission, differential and model-based testing).
+- `Tools/Main.lean`: the `lc` executable (`check`; forwards the rest to `lc-suite`). `Tools/Suite.lean`: `lc-suite` (C emission, differential and model-based testing).
 - `generated/lc_examples.{h,c}`: the C printed for every example.
 - `docs/`: topic guides (above), plus the original [landscape survey](docs/landscape.md), [design decisions](docs/design.md) and [learning assignments](docs/assignments.md).
 - `TODO.md`: follow-on work, prioritised.

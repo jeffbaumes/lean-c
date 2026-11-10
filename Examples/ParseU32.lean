@@ -257,3 +257,5 @@ theorem parseU32_correct (P : Program) (hP : P.find? "is_digit" = some isDigit)
       · rw [List.getElem?_eq_getElem hc] at hjc; cases hjc; exact ⟨hd1, hd2⟩
 
 end Examples.ParseU32
+
+#print axioms Examples.ParseU32.parseU32_correct

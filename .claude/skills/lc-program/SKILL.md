@@ -16,7 +16,7 @@ The goal: a C function whose correctness is a Lean theorem, for about the effort
 
 Read [Examples/SpecFirst.lean](../../../Examples/SpecFirst.lean) once before starting: it is all six steps for `is_sorted`, in order, and is the file to copy. [cookbook.md](cookbook.md) has proof patterns for the harder shapes (early return, calls, stores, branches).
 
-Check a file with `lake env lean Examples/Foo.lean` (about 5–30 s). Use `lake build` at the end.
+Check a file with `lake env lean Examples/Foo.lean` (about 5–30 s) while editing a proof. Use `lake exe lc check Examples.Foo` for the whole picture: build, `#guard`s, proofs, axioms, hygiene, and a small difftest, in one summary.
 
 ## 1–2. The reference and its tests
 
@@ -163,7 +163,7 @@ theorem countEq_refines (P : Program) (p : Ptr) (xs : List (BitVec 32)) (x : Bit
 
 ## Done means
 
-- The file builds with `lake build`; `#print axioms` shows only `propext`, `Classical.choice`, `Quot.sound`.
+- `lake exe lc check Examples.Foo` says PASS (it builds the file, runs the `#guard`s, checks `#print axioms` shows only `propext`, `Classical.choice`, `Quot.sound`, and difftests the function once it is in the suite).
 - The reference has edge-case `#guard`s and an oracle property; the code passes the interpreter-vs-reference `#guard`.
-- The function is in `Tests/Suite.lean`, the C is regenerated, and `nice -n 19 lake exe lc difftest 100 1 <name>` says PASS.
+- The function is in `Tests/Suite.lean` (`suite_entry% Examples.Foo.foo`), the C is regenerated, and `nice -n 19 lake exe lc difftest 100 1 <name>` says PASS.
 - Report what the theorem says in one or two plain sentences (the reviewer reads the spec, not the proof).

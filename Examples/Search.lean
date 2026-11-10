@@ -216,3 +216,6 @@ theorem lowerBound_correct (P : Program) (p : Ptr) (xs : List (BitVec 32)) (x : 
         omega
 
 end Examples.Search
+
+#print axioms Examples.Search.findFirst_correct
+#print axioms Examples.Search.lowerBound_correct

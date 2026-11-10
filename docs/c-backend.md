@@ -39,7 +39,7 @@ uint64_t array_sum(uint32_t *p, uint32_t n) {
 
 `mul16`, `add8`, `sub8`, `shl8`, `neg8` and `not16` cover narrow unsigned operations. `mul_i16` and `add_i32` cover signed overflow. `div_i32` and `mod_i32` cover truncating division, including negative operands. `neg_i64` covers `-INT64_MIN`. `lt_i8` is a signed comparison. `cast_u8`, `cast_i8` and `cast_i64` cover conversions. `fnv1a` is a real hash over a byte buffer with a known-answer `#guard`. Together with eight earlier examples, that's 24 functions.
 
-## 3. [Tools/Main.lean](../Tools/Main.lean): `lake exe lc difftest [cases] [seed] [fn]`
+## 3. [Tools/Suite.lean](../Tools/Suite.lean): `lake exe lc difftest [cases] [seed] [fn | --module M]`
 
 1. Random inputs come from a dependency-free xorshift PRNG, biased toward 0, 1, −1, MIN, MAX and small counts.
    - Each pointer gets its own random block, or, with probability ¼, shares a block with another pointer to test aliasing.

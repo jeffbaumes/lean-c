@@ -16,18 +16,19 @@ LC is a small C-like language deeply embedded in Lean 4, with a formal semantics
 ```bash
 lake build                                   # everything: library, examples (proofs + #guard tests), tests, the lc tool
 lake env lean Examples/Foo.lean              # check one file quickly (after `lake build` has built its imports)
+lake exe lc check Examples.Foo                # build + #guards + proofs + axioms + small difftest, as one summary
 lake exe lc emit generated/lc_examples       # regenerate the C after adding a function to Tests/Suite.lean
 nice -n 19 lake exe lc difftest 100 1 <fn>   # differential test of one function: C under UBSan/ASan and -O2 vs. the interpreter
 ```
 
-`#guard` failures and proof errors both fail `lake build`. Run the difftest with `nice -n 19`; it compiles many C files.
+`#guard` failures and proof errors both fail `lake build`. `lc check` builds even when the examples don't, so use it while iterating. Run the difftest with `nice -n 19`; it compiles many C files.
 
 ## Adding a function to the project
 
 1. `Examples/<Name>.lean`, in `namespace Examples.<Name>`, following the skill.
 2. `import Examples.<Name>` in [Examples.lean](Examples.lean).
-3. Add it to `difftestFns` in [Tests/Suite.lean](Tests/Suite.lean) (with its program, if it calls anything), then `lake exe lc emit generated/lc_examples` and commit the regenerated `generated/lc_examples.{h,c}`.
-4. Run its difftest, and mention it in [README.md](README.md) ("Verified programs") and the relevant doc in [docs/](docs).
+3. Add it to `difftestFns` in [Tests/Suite.lean](Tests/Suite.lean) as `suite_entry% Examples.Foo.foo` (or `suite_entry% … in prog` if it calls anything), then `lake exe lc emit generated/lc_examples` and commit the regenerated `generated/lc_examples.{h,c}`.
+4. `lake exe lc check Examples.<Name>` says PASS. Run a bigger difftest, and mention it in [README.md](README.md) ("Verified programs") and the relevant doc in [docs/](docs).
 
 ## Writing style for docs and comments
 

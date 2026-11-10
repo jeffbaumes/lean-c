@@ -87,3 +87,5 @@ def safeDivGt1 : Fn where
 
 
 end Examples.Arith
+
+#print axioms Examples.Arith.gcd_1071_462

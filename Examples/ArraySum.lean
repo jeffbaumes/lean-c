@@ -112,3 +112,5 @@ theorem arraySum_correct (P : Program) (p : Ptr) (xs : List (BitVec 32)) (hlen :
 
 
 end Examples.ArraySum
+
+#print axioms Examples.ArraySum.arraySum_correct

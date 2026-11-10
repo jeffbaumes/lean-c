@@ -359,3 +359,6 @@ theorem rbPop_correct (P : Program) (b s o : Ptr) (cap : Nat) (hcap : cap < 2 ^ 
       simp [slot, show head + 1 < cap by omega]
 
 end Examples.RingBuffer
+
+#print axioms Examples.RingBuffer.rbPush_correct
+#print axioms Examples.RingBuffer.rbPop_correct

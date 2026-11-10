@@ -131,3 +131,5 @@ theorem copy_correct (P : Program) (dst src : Ptr) (ss ds : List (BitVec 8)) (hl
 
 
 end Examples.Copy
+
+#print axioms Examples.Copy.copy_correct
