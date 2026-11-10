@@ -10,3 +10,4 @@ import LC.Logic.Sep
 import LC.Emit.C
 import LC.Spec
 import LC.Auto
+import LC.Check

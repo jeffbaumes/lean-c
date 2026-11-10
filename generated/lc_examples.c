@@ -167,6 +167,22 @@ uint32_t lower_bound(uint32_t *a, uint32_t n, uint32_t x) {
   return lo;
 }
 
+bool is_sorted(uint32_t *a, uint32_t n) {
+  uint32_t i;
+  uint32_t x;
+  uint32_t y;
+  i = 1u;
+  while (i < n) {
+    x = a[(i - 1u)];
+    y = a[i];
+    if (y < x) {
+      return false;
+    }
+    i = (i + 1u);
+  }
+  return true;
+}
+
 uint16_t mul16(uint16_t a, uint16_t b) {
   return ((uint16_t)((uint32_t)a * (uint32_t)b));
 }

@@ -15,10 +15,12 @@ No `sorry`, no `native_decide`. MIT licensed.
 | Ring buffer proved against a queue model; the specs compose | proved, and C tested against the model | [docs/ring-buffer.md](docs/ring-buffer.md) |
 | Function calls with a modular call rule, `break`, early `return`; `.h` + `.c` output | proved | [docs/programs.md](docs/programs.md) |
 | `lc_auto`: one tactic for the routine part of a proof (VC generation, store facts, cells inside `∗`, `BitVec`→`Nat`, `omega`/`grind`) | five example specs re-proved with it | [docs/automation.md](docs/automation.md) |
+| Spec-first workflow: reference functions, property tests in `#guard` (`LC.Check`), refinement theorems | `is_sorted` written spec-first; `parse_u32` and `lower_bound` refine reference functions | [docs/spec-first.md](docs/spec-first.md) |
 
 **Verified programs** ([Examples/](Examples)):
 - `parse_u32`, a decimal parser that calls a verified `is_digit` and detects overflow;
 - binary search (`lower_bound`) and linear search with `break` (`find_first`);
+- `is_sorted`, written spec-first and proved to return exactly its reference function's value;
 - ring-buffer push/pop;
 - `sum_to`, array sum and `copy_u8` (memcpy for separate buffers);
 - interpreter-checked `gcd`, `popcount` and FNV-1a.
@@ -46,6 +48,7 @@ nice -n 19 lake exe lc ringtest 200 1
   - `Logic/{Eval,Hoare,Sep}`: the program logics.
   - `Emit/C`: the C printer.
   - `Auto`: the `lc_auto`, `lc_while` and `lc_call` tactics.
+  - `Check`: random generators and `forAll`, for property tests in `#guard`.
 - `Examples/`: verified (or interpreter-checked) programs, one per file.
 - `Tests/`: semantics tests (what is UB), printer stress functions, the difftest suite.
 - `Tools/Main.lean`: the `lc` executable (C emission, differential and model-based testing).

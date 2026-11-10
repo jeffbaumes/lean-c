@@ -16,7 +16,7 @@ def difftestFns : List (Fn × Program) :=
   ([Examples.SumTo.sumTo, Examples.Arith.gcd, Examples.Arith.popcount, Examples.Arith.sub32,
    Examples.Arith.sub32u, Examples.Arith.safeDivGt1, Examples.ArraySum.arraySum,
    Examples.Copy.copy, Examples.Hash.fnv1a, Examples.RingBuffer.rbPush, Examples.RingBuffer.rbPop,
-   Examples.Search.findFirst, Examples.Search.lowerBound]
+   Examples.Search.findFirst, Examples.Search.lowerBound, Examples.SpecFirst.isSorted]
   ++ Tests.PrinterStress.all).map (·, [])
   ++ [(Examples.ParseU32.isDigit, Examples.ParseU32.prog),
       (Examples.ParseU32.parseU32, Examples.ParseU32.prog)]

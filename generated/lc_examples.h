@@ -18,6 +18,7 @@ bool rb_push(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t x);
 bool rb_pop(uint8_t *buf, uint32_t *st, uint32_t cap, uint8_t *out);
 uint32_t find_first(uint32_t *a, uint32_t n, uint32_t x);
 uint32_t lower_bound(uint32_t *a, uint32_t n, uint32_t x);
+bool is_sorted(uint32_t *a, uint32_t n);
 uint16_t mul16(uint16_t a, uint16_t b);
 uint8_t add8(uint8_t a, uint8_t b);
 uint8_t sub8(uint8_t a, uint8_t b);

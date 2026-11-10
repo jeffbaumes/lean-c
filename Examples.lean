@@ -7,3 +7,5 @@ import Examples.RingBuffer
 import Examples.Search
 import Examples.ParseU32
 import Examples.Auto
+import Examples.SpecFirst
+import Examples.Refinement

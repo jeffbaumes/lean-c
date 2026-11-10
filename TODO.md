@@ -15,7 +15,10 @@ Today a verified function costs roughly 20–40 edit-and-check iterations, mostl
   - `∗`-trees in a different order or shape (reordering, array split/join), towards a full `sep_simp`.
   - Accessible names for the destructured invariant, so leftover goals are easier to close by hand.
   - Invariant/variant annotations in the AST, so `lc_while` isn't needed (the VC-generator item below).
-- [ ] **Spec-first workflow with reference implementations.** Write the spec as a plain Lean function (e.g. `decVal`, a `List` queue) and prove that the LC code refines it. Before proving anything, `#eval` and property-test the reference: the spec is the one thing proofs can't check, and the thing a human reviews.
+- [x] **Spec-first workflow with reference implementations.** Write the spec as a plain Lean function (e.g. `decVal`, a `List` queue) and prove that the LC code refines it. Before proving anything, `#eval` and property-test the reference: the spec is the one thing proofs can't check, and the thing a human reviews. Done: `LC.Check` (deterministic generators and `forAll` for `#guard`), `is_sorted` written spec-first, and reference functions plus refinement theorems for `parse_u32` and `lower_bound` ([docs/spec-first.md](docs/spec-first.md)). Follow-ups:
+  - Shrinking, so a failing `#guard` reports a minimal counterexample.
+  - A reference-function version of the ring buffer spec (its `List` queue model is already one), and of `find_first`.
+  - Fold the interpreter-vs-reference check into `lc check`.
 - [ ] **`CLAUDE.md` plus an "LC program" skill.** The steps (spec → code → `lc check` → proof), the pitfalls (no Mathlib tactics: `set`, `ring_nf`, `tauto`, `by_contra`, `swap`; `BitVec` width reducibility; `rintro … rfl` renaming hypotheses), and a cookbook of proof patterns (rejoining branches with `rotate_left`/`all_goals`, calls via a callee spec, early return, loop variants, `star_get`/`star_update` through nested `∗`).
 - [ ] **`lake exe lc check <module>`.** One command: type-check, interpreter `#guard`s, a small low-priority difftest, and the build of the proofs, with a short readable summary. It gives an agent fast, unambiguous feedback.
 - [ ] **Benchmark the north star.** Pick 4–5 tasks (base64, CRC32, UTF-8 validation, a tokenizer, a bounded hash map). Have fresh sessions build each in C with unit tests and in LC with proofs, record time, tokens and iterations, and track the ratio.
@@ -49,7 +52,7 @@ Today a verified function costs roughly 20–40 edit-and-check iterations, mostl
 
 ## Testing
 
-- [ ] **Model-based tests for the new programs**, like `ringtest`: random strings vs. `decVal`, and random sorted arrays vs. a `List` lower bound.
+- [ ] **Model-based tests for the new programs**, like `ringtest`: random strings vs. `decVal`, and random sorted arrays vs. a `List` lower bound. (Done in the interpreter by `#guard`s in `Examples/Refinement.lean`; still to do against the compiled C.)
 - [ ] **Random program generation.** Generate well-typed LC programs, keep the ones the interpreter doesn't get stuck on, and difftest them (Csmith, inverted).
 - [ ] **CI.** `lake build` plus a small, low-priority difftest on every push.
 
