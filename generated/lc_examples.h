@@ -36,5 +36,7 @@ int8_t cast_i8(uint32_t a);
 int64_t cast_i64(uint32_t a);
 bool is_digit(uint8_t c);
 bool parse_u32(uint8_t *p, uint32_t n, uint32_t *out);
+uint8_t b64_sym(uint8_t x);
+uint32_t base64_encode(uint8_t *in, uint32_t n, uint8_t *out);
 
 #endif /* LC_EXAMPLES_H */
