@@ -14,7 +14,9 @@ really about the problem. Everything else is bookkeeping, and `lc_auto` does it:
   the loop rule and continues on its four obligations) and at `call` (`lc_call hfind spec init`).
 * **Store facts.** Hypotheses `st.get x = some v` are rewritten through any number of
   `Store.set`s, so they survive unrelated assignments. Invariants `I st h` are unfolded and
-  destructured, equations between variables are substituted, and `a ≤ b`, `b ≤ a` give `a = b`.
+  destructured, equations between variables are substituted (never eliminating a variable that
+  was in context when `lc_auto` was called), and `a ≤ b`, `b ≤ a` give `a = b`. The data it
+  introduces gets accessible names: the invariant's `∃ i` is `i`, a new store `st_1`.
 * **Heap (a small `sep_simp`).** For `p[i]` it searches the `∗`-trees of `array`s in context for
   the one that owns the cell (`array_get_at`, `star_get_left/right`). After `p[i] = e` it
   rewrites that heap fact to one about the updated heap (`array_update_at`,
@@ -28,7 +30,13 @@ really about the problem. Everything else is bookkeeping, and `lc_auto` does it:
   `assumption`, `omega`, `simp`, and finally `grind`. What can't be closed is left, simplified.
 
 `lc_auto [foo, bar]` also unfolds or rewrites with `foo`, `bar`: pass your invariant, variant
-and any spec lemmas (like `psum_succ`). `set_option trace.lc_auto true` shows what it does.
+and any spec lemmas (like `psum_succ`). The side-condition dischargers see them too.
+`set_option trace.lc_auto true` shows what it does.
+
+**Failing loudly.** A statement it can't execute is an error (`lc_auto: stuck at …`, with the
+expression it couldn't evaluate), not a silently returned goal. Each expression and each leaf
+gets `lc_auto.heartbeats` (thousands of) heartbeats; a leaf over budget is left open with a
+warning.
 
 **Soundness.** `lc_auto` only ever applies proved lemmas; everything it produces is checked by
 the kernel. It runs with error recovery off, so a sub-tactic that fails never turns into a
@@ -117,6 +125,22 @@ attribute [lc_simp] Expr.u8 Expr.u16 Expr.u32 Expr.u64 Expr.i8 Expr.i16 Expr.i32
     simpa [Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] using this
   · rintro rfl; rfl
 
+/-- `==.` and `!=.` on in-range values compare the numbers. -/
+@[lc_simp] theorem bv_beq_ofNat {w a b : Nat} (ha : a < 2 ^ w) (hb : b < 2 ^ w) :
+    (BitVec.ofNat w a == BitVec.ofNat w b) = decide (a = b) := by
+  rw [← decide_eq_decide.mpr (bv_ofNat_eq ha hb)]; rfl
+
+@[lc_simp] theorem bv_bne_ofNat {w a b : Nat} (ha : a < 2 ^ w) (hb : b < 2 ^ w) :
+    (BitVec.ofNat w a != BitVec.ofNat w b) = !decide (a = b) := by
+  rw [bne, bv_beq_ofNat ha hb]
+
+/-- Unsigned `%` of in-range values. -/
+@[lc_simp] theorem bv_umod {w a b : Nat} (ha : a < 2 ^ w) (hb : b < 2 ^ w) :
+    BitVec.ofNat w a % BitVec.ofNat w b = BitVec.ofNat w (a % b) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_umod, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]
+  exact (Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt (Nat.mod_le a b) ha)).symm
+
 @[lc_simp] theorem Fn.finish_normal_eq (f : Fn) (st : Store) :
     f.finish .normal st = (f.result.eval st).bind fun v => if v.ty = f.ret then some v else none :=
   rfl
@@ -187,13 +211,23 @@ elab "lc_omega" : tactic => do
     setGoals [g]
     withoutRecover (evalTactic (← `(tactic| omega)))
 
-/-- Discharger for `simp`'s side conditions: arithmetic from the context, else `simp`. -/
-elab "lc_disch" : tactic => withoutRecover do
-  evalTactic (← `(tactic| first | lc_omega | (simp <;> lc_omega)))
+/-- Discharger for `simp`'s side conditions: arithmetic from the context, else `simp` (with the
+extras given to `lc_auto`/`lc_while`, such as a length lemma) and `omega`. -/
+syntax "lc_disch" (" [" term,* "]")? : tactic
+elab_rules : tactic
+  | `(tactic| lc_disch $[[$ts,*]]?) => withoutRecover do
+    let ts : Array Term := match ts with | some ts => ts.getElems | none => #[]
+    let ts ← ts.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
+    evalTactic (← `(tactic| first | lc_omega | (simp [$ts,*] <;> lc_omega)))
 
-/-- Side goals of the heap lemmas. -/
-elab "lc_side" : tactic => withoutRecover do
-  evalTactic (← `(tactic| first | with_reducible rfl | lc_omega | (simp <;> lc_omega) | (simp; done)))
+/-- Side goals of the heap lemmas (bounds, block equalities), with the same extras. -/
+syntax "lc_side" (" [" term,* "]")? : tactic
+elab_rules : tactic
+  | `(tactic| lc_side $[[$ts,*]]?) => withoutRecover do
+    let ts : Array Term := match ts with | some ts => ts.getElems | none => #[]
+    let ts ← ts.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
+    evalTactic (← `(tactic|
+      first | with_reducible rfl | lc_omega | (simp [$ts,*] <;> lc_omega) | (simp [$ts,*]; done)))
 
 /-! ## Inspecting goals -/
 
@@ -249,11 +283,11 @@ def onGoal (g : MVarId) (k : TacticM Unit) : TacticM Unit := do
   setGoals rest
 
 /-- Prove the main goal `h a = some ?v` from `pf : H h`, where `H` is a `∗`-tree of arrays. -/
-partial def cellFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
+partial def cellFrom (xs : Array Term) (pf : Lean.Expr) : TacticM Unit := withMainContext do
   let ty ← instantiateMVars (← inferType pf)
   let t ← exprTerm pf
   if ty.isAppOf ``LC.array then
-    evalTactic (← `(tactic| (refine array_get_at $t ?_ ?_ ?_ <;> lc_side)))
+    evalTactic (← `(tactic| (refine array_get_at $t ?_ ?_ ?_ <;> lc_side [$xs,*])))
   else if ty.isAppOf ``LC.HProp.star then
     for lem in [``LC.star_get_left, ``LC.star_get_right] do
       let s ← saveState
@@ -261,18 +295,18 @@ partial def cellFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
         evalTactic (← `(tactic| apply $(mkIdent lem) $t))
         let (fvs, g) ← (← getMainGoal).intros
         replaceMainGoal [g]
-        cellFrom (mkFVar fvs[1]!)
+        cellFrom xs (mkFVar fvs[1]!)
         return
       catch _ => s.restore
     throwError "lc_auto: cell not owned"
   else throwError "lc_auto: not a heap fact"
 
 /-- Prove the main goal `?H (h.update a v)` from `pf : H h`, choosing `?H`. -/
-partial def updFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
+partial def updFrom (xs : Array Term) (pf : Lean.Expr) : TacticM Unit := withMainContext do
   let ty ← instantiateMVars (← inferType pf)
   let t ← exprTerm pf
   if ty.isAppOf ``LC.array then
-    evalTactic (← `(tactic| (refine array_update_at _ $t ?_ ?_ ?_ <;> lc_side)))
+    evalTactic (← `(tactic| (refine array_update_at _ $t ?_ ?_ ?_ <;> lc_side [$xs,*])))
   else if ty.isAppOf ``LC.HProp.star then
     for lem in [``LC.star_update_left, ``LC.star_update_right] do
       let s ← saveState
@@ -286,8 +320,8 @@ partial def updFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
         setGoals [g₁, g₂]
         onGoal g₁ do
           evalTactic (← `(tactic| apply ne_none_of_eq_some))
-          cellFrom hh
-        onGoal g₂ (updFrom hh)
+          cellFrom xs hh
+        onGoal g₂ (updFrom xs hh)
         return
       catch e =>
         trace[lc_auto] "updFrom {lem}: {e.toMessageData}"
@@ -297,7 +331,7 @@ partial def updFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
 
 /-- Prove the main goal `H' h` from `pf : H h` for `∗`-trees of the same shape. Leftover goals
 are equalities of cell lists. -/
-partial def heapFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
+partial def heapFrom (xs : Array Term) (pf : Lean.Expr) : TacticM Unit := withMainContext do
   let ty ← instantiateMVars (← inferType pf)
   let tgt ← instantiateMVars (← getMainTarget)
   let t ← exprTerm pf
@@ -310,44 +344,73 @@ partial def heapFrom (pf : Lean.Expr) : TacticM Unit := withMainContext do
       setGoals [g]
       let (fvs, g) ← (← getMainGoal).intros
       setGoals [g]
-      heapFrom (mkFVar fvs[1]!)
+      heapFrom xs (mkFVar fvs[1]!)
       out := out ++ (← getGoals)
     setGoals out.toList
   else if ty.isAppOf ``LC.array && tgt.isAppOf ``LC.array then
     evalTactic (← `(tactic| refine array_congr $t (by first | rfl | simp) ?_))
-    _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat])))
+    _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch [$xs,*]) [lc_simp, -BitVec.ofNat_toNat, $(← mkSimpArgs xs),*])))
   else throwError "lc_auto: heap shapes differ"
 
 /-! ## The pieces -/
+
+/-- Run `k` with a fresh budget of `lc_auto.heartbeats` (thousands of) heartbeats. Returns `none`,
+with the state restored, if it runs out. -/
+def withCap {α} (k : TacticM α) : TacticM (Option α) := do
+  let n := lc_auto.heartbeats.get (← getOptions)
+  if n == 0 then return some (← k)
+  let s ← saveState
+  tryCatchRuntimeEx
+    (withTheReader Core.Context (fun c => { c with maxHeartbeats := n * 1000 })
+      (withCurrHeartbeats (some <$> k)))
+    fun e => do
+      unless e.isMaxHeartbeat do throw e
+      s.restore
+      return none
 
 /-- `lhs = some ?v`: compute `lhs` by `simp` and assign `?v`. -/
 def evalGoalCore (extras : Array Term) : TacticM Unit := withMainContext do
   let facts ← storeFacts
   let args ← mkSimpArgs (facts ++ extras)
-  evalTactic (← `(tactic| focus
-    (try (conv => lhs; simp (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat, $args,*]))
-    first | done | exact rfl))
+  let g :: rest ← getGoals | throwError "lc_auto: no goal"
+  setGoals [g]
+  evalTactic (← `(tactic|
+    (try (conv => lhs; simp (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat, $args,*]))))
+  let ok ← match ← getGoals with
+    | [] => pure true
+    | _ => tryTac (evalTactic (← `(tactic| exact rfl)))
+  if ok then setGoals rest; return
+  do
+    let tgt ← instantiateMVars (← getMainTarget)
+    let lhs := (tgt.eq?.map (·.2.1)).getD tgt
+    throwError "lc_auto: cannot evaluate an expression to a value. `simp` got as far as{indentExpr lhs}\n\
+      Check that every variable it reads has a store fact `st.get x = some …` (in the \
+      invariant, for a loop), and pass lemmas that compute the rest: `lc_auto [foo]`."
 
 def evalGoal (extras : Array Term) : TacticM Unit := withMainContext do
   let hb ← IO.getNumHeartbeats
   trace[lc_auto] "eval: {← getMainTarget}"
-  try evalGoalCore extras
+  try
+    if (← withCap (evalGoalCore extras)).isNone then
+      throwError "lc_auto: evaluating an expression ran out of heartbeats{indentExpr (← getMainTarget)}\n\
+        (budget `set_option lc_auto.heartbeats {lc_auto.heartbeats.get (← getOptions)}`). \
+        A lemma passed to `lc_auto [...]` may be looping, or `simp` is unfolding something big."
   finally trace[lc_auto] "eval done ({((← IO.getNumHeartbeats) - hb) / 1000}k)"
 
 /-- Prove `h a = some ?v` from some heap fact. -/
-def cellGoal : TacticM Unit := withMainContext do
+def cellGoal (xs : Array Term) : TacticM Unit := withMainContext do
   for (pf, _) in ← heapFacts do
     let g ← getMainGoal
     let rest := (← getGoals).tail
     setGoals [g]
-    if ← tryTac (cellFrom pf) then
+    if ← tryTac (cellFrom xs pf) then
       if (← getGoals).isEmpty then setGoals rest; return
     setGoals (g :: rest)
   throwError "lc_auto: cannot find the cell in any owned array"
 
 /-- After a store to `h.update a v`, turn the heap fact about `h` into one about the new
 heap and generalize it. -/
-def afterStore : TacticM Unit := withMainContext do
+def afterStore (xs : Array Term) : TacticM Unit := withMainContext do
   let g ← getMainGoal
   let tgt ← instantiateMVars (← g.getType)
   let some upd := tgt.find? (fun e => e.isAppOfArity ``LC.Heap.update 3) | return
@@ -359,7 +422,7 @@ def afterStore : TacticM Unit := withMainContext do
       let H ← mkFreshExprMVar (mkConst ``LC.HProp)
       let target := mkApp H upd
       let pfNew ← mkFreshExprMVar target
-      let gs ← Tactic.run pfNew.mvarId! (withoutRecover (updFrom pf))
+      let gs ← Tactic.run pfNew.mvarId! (withoutRecover (updFrom xs pf))
       unless gs.isEmpty do throwError "leftover"
       let ty ← instantiateMVars target
       let pfv ← instantiateMVars pfNew
@@ -401,9 +464,70 @@ partial def antisymm (fuel : Nat := 8) : TacticM Unit := withMainContext do
           antisymm (fuel - 1); return
         catch _ => s.restore
 
+/-- An accessible version of `base` that no local in `used` has yet: `i`, `i_1`, `i_2`, … -/
+def freshName (used : Array Name) (base : Name) : Name := Id.run do
+  let base := base.eraseMacroScopes
+  let mut n := base
+  let mut k := 1
+  while used.contains n do
+    n := base.appendIndexAfter k
+    k := k + 1
+  return n
+
+def usedNames (g : MVarId) : MetaM (Array Name) := do
+  let mut out := #[]
+  for d in (← g.getDecl).lctx do
+    unless d.isImplementationDetail || d.userName.hasMacroScopes do out := out.push d.userName
+  return out
+
+/-- Give the data `lc_auto` introduced (stores, heaps, the witnesses of an invariant's `∃`)
+accessible names, so leftover goals can mention them. Hypotheses stay inaccessible. -/
+def nameLocals : TacticM Unit := do
+  let mut g ← getMainGoal
+  let mut used ← usedNames g
+  for d in (← g.getDecl).lctx do
+    if d.isImplementationDetail || !d.userName.hasMacroScopes then continue
+    if ← g.withContext (isProp d.type) then continue
+    let n := freshName used d.userName
+    used := used.push n
+    g ← g.rename d.fvarId n
+  replaceMainGoal [g]
+
+/-- `subst` equations `x = e` and `e = x`, but never eliminate a variable named in `keep` (the
+ones in context when `lc_auto` was called, such as a capacity `cap` that the invariant
+mentions). -/
+def substFree (keep : Array Name) : TacticM Unit := do
+  let count (lctx : LocalContext) (n : Name) : Nat :=
+    lctx.foldl (fun c d => if d.userName == n then c + 1 else c) 0
+  let mut fuel := 64
+  let mut progress := true
+  while progress && fuel > 0 do
+    progress := false
+    fuel := fuel - 1
+    let g ← getMainGoal
+    let lctx := (← g.getDecl).lctx
+    for d in lctx do
+      if d.isImplementationDetail then continue
+      let ty ← g.withContext (instantiateMVars d.type)
+      let some (_, a, b) := ty.eq? | continue
+      unless a.isFVar || b.isFVar do continue
+      for symm in [false, true] do
+        let s ← saveState
+        try
+          let (_, g') ← substCore g d.fvarId (symm := symm) (tryToSkip := true)
+          let lctx' := (← g'.getDecl).lctx
+          if keep.all fun n => count lctx' n ≥ count lctx n then
+            replaceMainGoal [g']
+            progress := true
+            break
+          s.restore
+        catch _ => s.restore
+      if progress then break
+
 /-- Destructure `∧`/`∃` hypotheses (including invariants applied to a store), `subst`
-equalities between variables, and normalise evaluated conditions. -/
-partial def prep (extras : Array Term) : TacticM Unit := do
+equalities between variables (except those in `keep`), name the new data, and normalise
+evaluated conditions. -/
+partial def prep (keep : Array Name) (extras : Array Term) : TacticM Unit := do
   _ ← tryTac (evalTactic (← `(tactic| intros)))
   -- destruct
   let rec loop : Nat → TacticM Unit
@@ -416,6 +540,7 @@ partial def prep (extras : Array Term) : TacticM Unit := do
         unless (← isProp ty) do continue
         let ty' ← whnfR ty
         let mut go := ty'.isAppOf ``And || ty'.isAppOf ``Exists
+        let mut ex := ty'
         if !go then
           -- an invariant: an application to a store
           let args := ty.getAppArgs
@@ -425,14 +550,26 @@ partial def prep (extras : Array Term) : TacticM Unit := do
           if hasStore && ty.getAppFn.isConst then
             let tyD ← whnfD ty
             go := tyD.isAppOf ``And || tyD.isAppOf ``Exists
+            ex := tyD
         if go then
           let g ← getMainGoal
           let gs ← g.cases d.fvarId
-          replaceMainGoal (gs.map (·.mvarId)).toList
+          let mut gs' := #[]
+          for sg in gs do
+            let mut g' := sg.mvarId
+            -- the witness of `∃ i, …` is called `i`
+            if ex.isAppOf ``Exists then
+              if let (.lam n _ _ _, some w) := (ex.appArg!, sg.fields[0]?) then
+                if let some fv := w.fvarId? then
+                  if (← g'.getDecl).lctx.contains fv then
+                    g' ← g'.rename fv (freshName (← usedNames g') n)
+            gs' := gs'.push g'
+          replaceMainGoal gs'.toList
           loop n
           return
   loop 64
-  _ ← tryTac (evalTactic (← `(tactic| subst_vars)))
+  substFree keep
+  nameLocals
   -- normalise evaluated conditions and computed booleans
   withMainContext do
     let facts ← storeFacts
@@ -445,7 +582,7 @@ partial def prep (extras : Array Term) : TacticM Unit := do
       unless interesting do continue
       if (← getGoals).isEmpty then return
       let t ← exprTerm d.toExpr
-      _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat, $args,*] at $(⟨t⟩):term)))
+      _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat, $args,*] at $(⟨t⟩):term)))
   if (← getGoals).isEmpty then return
   antisymm
 
@@ -471,20 +608,20 @@ def stmtOf (tgt : Lean.Expr) : MetaM (Option (Bool × Name × Lean.Expr)) := do
 mutual
 
 /-- Process one goal completely: prep, then a statement step or the pure solver. -/
-partial def auto (extras : Array Term) : TacticM Unit := do
+partial def auto (keep : Array Name) (extras : Array Term) : TacticM Unit := do
   trace[lc_auto] "auto: {← getMainTarget}"
   let hb0 ← IO.getNumHeartbeats
-  prep extras
+  prep keep extras
   trace[lc_auto] "prepped ({((← IO.getNumHeartbeats) - hb0) / 1000}k)"
   if (← getGoals).isEmpty then return
   unfoldFnFields
   let tgt ← instantiateMVars (← getMainTarget)
   match ← stmtOf tgt with
-  | some (isO, n, _) => step extras isO n
+  | some (isO, n, _) => step keep extras isO n
   | none => pure_ extras
 
 /-- One symbolic-execution step, then `auto` on what it leaves. -/
-partial def step (extras : Array Term) (isO : Bool) (n : Name) : TacticM Unit := do
+partial def step (keep : Array Name) (extras : Array Term) (isO : Bool) (n : Name) : TacticM Unit := do
   let g ← getMainGoal
   let s ← saveState
   let cont (tac : TacticM Unit) : TacticM Unit := do
@@ -500,13 +637,18 @@ partial def step (extras : Array Term) (isO : Bool) (n : Name) : TacticM Unit :=
       if ← g.isAssigned then continue
       setGoals [g]
       _ ← tryTac (evalTactic (← `(tactic| dsimp only)))
-      auto extras
+      auto keep extras
       out := out ++ (← getGoals)
     setGoals out.toList
   let ev : TacticM Unit := evalGoal extras
   trace[lc_auto] "step {n}"
   try stepCore extras isO n cont finish ev
-  catch _ => s.restore; setGoals [g]
+  catch e =>
+    s.restore; setGoals [g]
+    let stmt ← g.withContext do whnf ((← whnfR (← instantiateMVars (← g.getType))).getArg! 1)
+    -- an error from a nested step already says where it is
+    if (← e.toMessageData.toString).startsWith "lc_auto: stuck" then throw e
+    throwError "lc_auto: stuck at{indentExpr stmt}\n{e.toMessageData}"
 
 partial def stepCore (_extras : Array Term) (isO : Bool) (n : Name)
     (cont : TacticM Unit → TacticM Unit) (finish ev : TacticM Unit) : TacticM Unit := do
@@ -534,9 +676,9 @@ partial def stepCore (_extras : Array Term) (isO : Bool) (n : Name)
       evalTactic (← if isO then `(tactic| apply swpo_load)
                     else `(tactic| apply swp_load))
       ev
-      cellGoal
+      cellGoal _extras
       -- `xs[k]!` from the cell lookup becomes `f ys[i]`
-      evalTactic (← `(tactic| all_goals try simp (disch := lc_disch) only
+      evalTactic (← `(tactic| all_goals try simp (disch := lc_disch [$_extras,*]) only
         [getElem!_pos, List.getElem_map, Nat.add_sub_cancel_left, List.getElem_cons_zero]))
       evalTactic (← `(tactic| first | rfl | (simp [Val.ty]; done)))
     finish
@@ -546,8 +688,8 @@ partial def stepCore (_extras : Array Term) (isO : Bool) (n : Name)
                     else `(tactic| apply swp_store))
       ev; ev
       evalTactic (← `(tactic| first | rfl | (simp [Val.ty]; done) | simp [Val.ty]))
-      cellGoal
-      afterStore
+      cellGoal _extras
+      afterStore _extras
     finish
   | ``LC.Stmt.brk =>
     if isO then
@@ -604,7 +746,10 @@ partial def pure_ (extras : Array Term) : TacticM Unit := do
 partial def leaf (extras : Array Term) : TacticM Unit := withMainContext do
   let hb ← IO.getNumHeartbeats
   trace[lc_auto] "leaf: {← getMainTarget}"
-  leafCore extras
+  let tgt ← getMainTarget
+  if (← withCap (leafCore extras)).isNone then
+    logWarning m!"lc_auto: gave up on this goal after \
+      {lc_auto.heartbeats.get (← getOptions)}k heartbeats; it is left open{indentExpr tgt}"
   trace[lc_auto] "leaf done ({((← IO.getNumHeartbeats) - hb) / 1000}k heartbeats, {(← getGoals).length} left)"
 
 partial def leafCore (extras : Array Term) : TacticM Unit := withMainContext do
@@ -613,7 +758,7 @@ partial def leafCore (extras : Array Term) : TacticM Unit := withMainContext do
   -- heap assertions
   if isHPropFact tgt then
     for (pf, _) in ← heapFacts do
-      if ← tryTac (heapFrom pf) then
+      if ← tryTac (heapFrom extras pf) then
         let gs ← getGoals
         let mut out := #[]
         for g in gs do
@@ -627,7 +772,7 @@ partial def leafCore (extras : Array Term) : TacticM Unit := withMainContext do
   if ← tryTac (evalTactic (← `(tactic| first | exact rfl | with_reducible assumption | lc_omega))) then return
   let facts ← storeFacts
   let args ← mkSimpArgs (facts ++ extras)
-  let simpAll ← `(tactic| simp +zetaDelta (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat, $args,*])
+  let simpAll ← `(tactic| simp +zetaDelta (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat, $args,*])
   let s0 ← saveState
   try
     evalTactic simpAll
@@ -650,15 +795,15 @@ partial def leafCore (extras : Array Term) : TacticM Unit := withMainContext do
       for fv in fvs do
         if (← getGoals).isEmpty then break
         let t ← exprTerm (mkFVar fv)
-        _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat] at $(⟨t⟩):term)))
+        _ ← tryTac (evalTactic (← `(tactic| simp (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat] at $(⟨t⟩):term)))
     if (← getGoals).isEmpty then return
-    evalTactic (← `(tactic| first | with_reducible assumption | lc_omega | (simp (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat] <;> lc_omega)))
+    evalTactic (← `(tactic| first | with_reducible assumption | lc_omega | (simp (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat] <;> lc_omega)))
     return
   catch _ => s.restore
   if ← tryTac (evalTactic (← `(tactic| set_option maxHeartbeats 40000 in grind))) then return
   -- partial progress is still progress
   _ ← tryTac (evalTactic (← `(tactic|
-      simp +zetaDelta (disch := lc_disch) [lc_simp, -BitVec.ofNat_toNat, $args,*])))
+      simp +zetaDelta (disch := lc_disch [$extras,*]) [lc_simp, -BitVec.ofNat_toNat, $args,*])))
   -- a conjunction that `simp` exposed: work on the parts separately
   if (← getGoals).length == 1 then
     let g ← getMainGoal
@@ -693,7 +838,7 @@ elab_rules : tactic
     let mut out := #[]
     for g in gs do
       setGoals [g]
-      withoutRecover (LC.Auto.auto extras)
+      withoutRecover (LC.Auto.auto (← LC.Auto.usedNames g) extras)
       out := out ++ (← getGoals)
     setGoals out.toList
 
@@ -730,6 +875,10 @@ elab_rules : tactic
   | `(tactic| lc_call $hP $spec $init $[[$ts,*]]?) => do
     let extras : Array Term := match ts with | some ts => ts.getElems | none => #[]
     let (g, others) ← LC.Auto.focusStmt ``LC.Stmt.call
+    if let some (false, _, _) ← g.withContext (LC.Auto.stmtOf (← g.getType)) then
+      throwError "lc_call: the goal is a `swp` (normal completion only), but the call rule is \
+        stated for `swpo`. State the body spec with `swpo` and `Fn.finish`, and use \
+        `Fn.returns_of_swpo` instead of `Fn.returns_of_swp`."
     setGoals [g]
     evalTactic (← `(tactic| apply LC.swpo_call_pure $hP))
     let gs ← getGoals
@@ -744,5 +893,5 @@ elab_rules : tactic
       else do evalTactic (← `(tactic| exact $init)))
     LC.Auto.onGoal hbody (evalTactic (← `(tactic| exact $spec)))
     setGoals [hq]
-    withoutRecover (LC.Auto.auto extras)
+    withoutRecover (LC.Auto.auto (← LC.Auto.usedNames hq) extras)
     setGoals ((← getGoals) ++ others)

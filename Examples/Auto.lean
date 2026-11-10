@@ -198,9 +198,32 @@ theorem parseU32_correct (P : Program) (hP : P.find? "is_digit" = some isDigit)
   · exact digits_succ ‹_› ‹_› ‹_› ‹_›
   · exact ok_of_loop ‹_› ‹_› ‹_›
   · simp [decVal]
-  · exact not_ok_nil
+  · subst_vars; exact not_ok_nil
 
 end ParseU32
+
+/-! ## Short-circuit conditions
+
+`&&.` and `||.` in an `if` or `while` condition are evaluated like any other expression. -/
+
+example (P : Program) (st : Store) (h : Heap) (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32)
+    (hsa : st.get "a" = some (nu32 a)) (hsb : st.get "b" = some (nu32 b)) :
+    swp P (.ite (v "a" ==. .u32 0 ||. v "b" ==. .u32 0) ("r" ::= .u32 0) ("r" ::= .u32 1))
+      (fun st _ => ∃ r, st.get "r" = some (nu32 r) ∧ (r = 0 ↔ (a = 0 ∨ b = 0))) st h := by
+  lc_auto
+
+def minInv (n m : Nat) : SProp := fun st _ =>
+  ∃ i, i ≤ n ∧ i ≤ m ∧ st.get "n" = some (nu32 n) ∧ st.get "m" = some (nu32 m) ∧
+    st.get "i" = some (nu32 i)
+
+/-- `while (i < n && i < m) i++` stops at `min n m`. -/
+example (P : Program) (st : Store) (h : Heap) (n m : Nat) (hn : n < 2 ^ 32) (hm : m < 2 ^ 32)
+    (hsn : st.get "n" = some (nu32 n)) (hsm : st.get "m" = some (nu32 m)) :
+    swp P (.block ["i" ::= .u32 0,
+        .while (v "i" <. v "n" &&. v "i" <. v "m") ("i" ::= v "i" + .u32 1)])
+      (fun st _ => ∃ i, st.get "i" = some (nu32 i) ∧ i = min n m) st h := by
+  lc_auto
+  lc_while (minInv n m) (counterVariant n) [minInv, counterVariant]
 
 end Examples.Auto
 

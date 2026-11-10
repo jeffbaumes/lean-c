@@ -79,6 +79,46 @@ theorem Expr.eval_binop (σ : Store) (op : BinOp) (a b : Expr)
     (Expr.binop op a b).eval σ = (a.eval σ).bind fun x => (b.eval σ).bind (evalBinOp op x) :=
   Expr.eval_binop σ op a b (by cases op <;> simp_all) (by cases op <;> simp_all)
 
+/-! The short-circuit operators `&&.` and `||.`. The right operand is wrapped in `Expr.lorK` /
+`Expr.landK`, which `simp` keeps closed until it knows enough: the left value (`true`/`false`
+picks a side) or a boolean right value (the result is `s || r` / `s && r`). Unfolding to an
+`if` instead lets `simp` rewrite `decide p = true` to `p`, and then the `if` never closes. -/
+
+/-- The boolean inside a value, if it is one. -/
+def Val.bool? : Val → Option Bool
+  | .bool b => some b
+  | _ => none
+
+@[simp] theorem Val.bool?_bool (b : Bool) : (Val.bool b).bool? = some b := rfl
+
+/-- `s || k`, where `k` is evaluated only if `s` is false. -/
+def Expr.lorK (s : Bool) (k : Option Val) : Option Val := if s then some (.bool true) else k
+/-- `s && k`, where `k` is evaluated only if `s` is true. -/
+def Expr.landK (s : Bool) (k : Option Val) : Option Val := if s then k else some (.bool false)
+
+@[simp] theorem Expr.lorK_true (k : Option Val) : Expr.lorK true k = some (.bool true) := rfl
+@[simp] theorem Expr.lorK_false (k : Option Val) : Expr.lorK false k = k := rfl
+@[simp] theorem Expr.lorK_bool (s r : Bool) :
+    Expr.lorK s (some (.bool r)) = some (.bool (s || r)) := by cases s <;> rfl
+@[simp] theorem Expr.landK_true (k : Option Val) : Expr.landK true k = k := rfl
+@[simp] theorem Expr.landK_false (k : Option Val) : Expr.landK false k = some (.bool false) := rfl
+@[simp] theorem Expr.landK_bool (s r : Bool) :
+    Expr.landK s (some (.bool r)) = some (.bool (s && r)) := by cases s <;> rfl
+
+@[simp] theorem Expr.eval_lor (σ : Store) (a b : Expr) :
+    (Expr.binop .lor a b).eval σ = (a.eval σ).bind fun x => x.bool?.bind fun s =>
+      Expr.lorK s (((b.eval σ).bind Val.bool?).map Val.bool) := by
+  simp only [Expr.eval, Expr.lorK]
+  rcases Expr.eval σ a with _ | (_ | ⟨_ | _⟩ | _ | _) <;>
+    (try rfl) <;> rcases Expr.eval σ b with _ | (_ | _ | _ | _) <;> rfl
+
+@[simp] theorem Expr.eval_land (σ : Store) (a b : Expr) :
+    (Expr.binop .land a b).eval σ = (a.eval σ).bind fun x => x.bool?.bind fun s =>
+      Expr.landK s (((b.eval σ).bind Val.bool?).map Val.bool) := by
+  simp only [Expr.eval, Expr.landK]
+  rcases Expr.eval σ a with _ | (_ | ⟨_ | _⟩ | _ | _) <;>
+    (try rfl) <;> rcases Expr.eval σ b with _ | (_ | _ | _ | _) <;> rfl
+
 @[simp] theorem evalBinOp_int (op : BinOp) (t : IntTy) (a b : BitVec t.bits) :
     evalBinOp op (.int t a) (.int t b) = intBinOp op t a b := by
   simp [evalBinOp]

@@ -205,7 +205,7 @@ theorem crc32_refines (P : Program) (p : Ptr) (xs : List (BitVec 8))
     exact ⟨m', hret, by rw [hm', hm]⟩
   lc_auto
   lc_while (outerInv p xs h) (counterVariant xs.length) [outerInv, counterVariant]
-  lc_while (innerInv p xs ‹Heap› ‹Nat›) jVar [innerInv, jVar, bits_step, outerInv, counterVariant,
+  lc_while (innerInv p xs h i) jVar [innerInv, jVar, bits_step, outerInv, counterVariant,
     crcReg_take_succ, stepByte]
   · -- the witness for the byte is `xs[i]`, and the invariant's `b` is that byte
     obtain ⟨_, hb⟩ := List.getElem?_eq_some_iff.mp ‹xs[_]? = some _›

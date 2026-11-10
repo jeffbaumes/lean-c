@@ -327,15 +327,11 @@ theorem cont_ok {xs : List (BitVec 8)} {i k : Nat} {lo hi : BitVec 8}
 
 theorem exit_ok {xs : List (BitVec 8)} {k : Nat} {lo hi : BitVec 8} (hk : k ≤ 3)
     (hinv : validRef xs = pendRef (stateConts k lo hi) (xs.drop xs.length)) :
-    (BitVec.ofNat 32 k == 0#32) = validRef xs := by
+    decide (k = 0) = validRef xs := by
   rw [hinv, List.drop_length]
   cases k with
   | zero => simp [stateConts, pendRef_nil, validRef]
-  | succ j =>
-    rw [stateConts, pendRef_cons_nil]
-    have : (BitVec.ofNat 32 (j + 1)).toNat = j + 1 := by simp; omega
-    simp only [beq_eq_false_iff_ne, ne_eq]
-    intro e; rw [e] at this; simp at this
+  | succ j => rw [stateConts, pendRef_cons_nil]; simp
 
 theorem utf8Valid_refines (P : Program) (p : Ptr) (xs : List (BitVec 8))
     (hlen : xs.length < 2 ^ 32) (h hf : Heap) (m : Mem) (ha : array p (u8s xs) h)

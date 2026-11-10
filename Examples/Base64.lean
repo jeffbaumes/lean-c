@@ -239,8 +239,6 @@ theorem encRef_length : ∀ xs : List (BitVec 8), (encRef xs).length = 4 * ((xs.
   | [_] => by simp [encRef]
   | [] => by simp [encRef]
 
--- So that `lc_auto`'s bounds checks (which run plain `simp`) see the length of the output.
-attribute [local simp] encRef_length
 
 /-- Whole groups encode independently. -/
 theorem encRef_append : ∀ (l₁ l₂ : List (BitVec 8)), l₁.length % 3 = 0 →

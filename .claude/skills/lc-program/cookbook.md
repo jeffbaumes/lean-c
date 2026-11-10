@@ -81,7 +81,7 @@ and pass it to `lc_while` and in the extras.
 
 ## Leftover goals
 
-They have inaccessible names (`a✝`, `left✝²`). Don't fight that: write a lemma whose hypotheses are the facts the goal needs, and apply it with `‹_›` for each (Lean finds them by type) or `(by omega)`:
+The data in them has names: the invariant's `∃ i` comes back as `i`, a store after the body as `st_1`, a heap after a store as `h_1`. Hypotheses are inaccessible (`a✝`, `left✝²`). Don't fight that: write a lemma whose hypotheses are the facts the goal needs, and apply it with `‹_›` for each (Lean finds them by type) or `(by omega)`:
 
 ```lean
   · exact digits_succ ‹_› ‹_› ‹_› ‹_›
@@ -89,13 +89,35 @@ They have inaccessible names (`a✝`, `left✝²`). Don't fight that: write a le
   · simp [‹¬_›]
 ```
 
-Inspect them first with `all_goals trace_state`. If you need names, `rename_i a b c` (names the last three inaccessible hypotheses, in order) or `next x hx => …`.
+Inspect them first with `all_goals trace_state`. If you need hypothesis names, `rename_i a b c` (names the last three inaccessible hypotheses, in order) or `next x hx => …`. Don't use `‹Heap›` or `‹Nat›` to mean "the one `lc_auto` introduced": it finds the most recent one of that type, which may be yours. Use the name.
 
 Typical lemma shapes:
 - **succ**: the reference on `xs.take (i + 1)` in terms of `xs.take i` and `xs[i]` (`countRef_take_succ`, `decVal_take_succ`, `psum_succ`). Proof: `List.take_succ_eq_append_getElem hi`, then `List.filter_append`/`List.foldl_append`/`List.length_append`, `simp`.
 - **exit**: at `i = xs.length`, `xs.take i = xs` (`List.take_length`), or "all prefix facts" gives the full spec (`sorted_of_adj`).
 - **∀ j < i + 1** from `∀ j < i` plus the new element: `rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj | rfl` (`digits_succ`).
 - **`xs[j]?` to `xs[j]`**: `List.getElem?_eq_getElem (by omega)`.
+
+## Nested loops
+
+The inner invariant is a function of the outer loop's counter and heap, which have names in the outer body's goal (`Examples/Crc32.lean`):
+
+```lean
+  lc_auto
+  lc_while (outerInv p xs h) (counterVariant xs.length) [outerInv, counterVariant]
+  lc_while (innerInv p xs h i) jVar [innerInv, jVar, bits_step, outerInv, counterVariant, …]
+```
+
+The inner invariant repeats every store fact of the outer one (the body after the inner loop reads them), plus its own counter. Pass both invariants to the inner `lc_while`: its exit goal is the outer invariant again.
+
+## Ghost state in the invariant
+
+When the invariant has an `∃` over something other than a counter (tokens found so far, the current token's start), make each witness a **function of store values** (`tokStart = st.get "s"`), stated as a store fact, not a free existential tied only by a heap fact. `lc_auto` finds witnesses by unifying store facts; a witness that appears only in the heap is unified through the unchanged heap and comes out wrong.
+
+## Prefix functions and big definitions
+
+- If the reference is computed over `xs.take i`, and `simp` or `decide` hit max recursion on it, make the prefix function an opaque definition `f xs i` with a `f_succ` lemma (`f xs (i + 1) = step (f xs i) xs[i]`) and a `f_zero` lemma, and pass those as extras instead of unfolding.
+- A lookup table written as a `String` (`"ABC…".toList[k]!`): `decide` over it never finishes. `simp` it to a `List Char` or a function by cases first, or define the table as a `List (BitVec 8)` from the start.
+- A wrapping multiply (`x * 0x01000193`) plus a general mask lemma can send `simp` into a long search. `lc_auto` now gives up after `lc_auto.heartbeats`; state the step as a lemma about the exact shape in the table above and pass it.
 
 ## Proofs by hand (when `lc_auto` isn't enough)
 

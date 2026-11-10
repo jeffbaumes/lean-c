@@ -148,8 +148,23 @@ theorem countEq_refines (P : Program) (p : Ptr) (xs : List (BitVec 32)) (x : Bit
 - **The invariant** is an `SProp` (`Store → Heap → Prop`): an `∃` over the ghost counters, a store fact `st.get "x" = some …` for **every** variable read after the loop or in the body (including parameters), the range facts the arithmetic needs (`i ≤ xs.length`), the reference applied to the processed prefix (`xs.take i`), and the heap (`h = h₀`, or an `array`/`∗` fact if the loop writes).
 - **The succ lemma.** Phrase the accumulator as the reference on `xs.take i`, and prove how it extends to `xs.take (i + 1)` (`List.take_succ_eq_append_getElem`). Pass it to `lc_while` as an extra. This is the usual "lemma about the problem".
 - **Extras** go to `simp`: the invariant and variant definitions always; spec-to-arithmetic lemmas (`psum_succ`, `decVal_take_succ`); definitions hiding a needed bound (`IsDigit` for `48 ≤ c`).
-- **Leftover goals** come back simplified, with inaccessible hypothesis names. Close them with lemmas applied to `‹_›` or `(by omega)`, or `simp [‹_›]`. See what's left with `all_goals trace_state` before the bullets; see what `lc_auto` did with `set_option trace.lc_auto true in`.
-- **Callees**: prove the callee's spec first as a body-level theorem (`isDigit_spec`), then `lc_call hfind spec init [extras]`. Callees that own heap need `swpo_call` by hand (cookbook).
+- **Leftover goals** come back simplified. The data `lc_auto` introduced has names you can use (the invariant's `∃ i` is `i`, a later store is `st_1`, a new heap `h_1`); hypotheses stay inaccessible. Close them with lemmas applied to `‹_›` or `(by omega)`, or `simp [‹_›]`. See what's left with `all_goals trace_state` before the bullets; see what `lc_auto` did with `set_option trace.lc_auto true in`.
+- **Your variables are kept.** `lc_auto` substitutes equations between the variables it introduced, but never eliminates one that was in context when you called it (a parameter `cap`, the heap `h`). An equation such as `cs = []` stays a hypothesis: `subst_vars` it yourself if you want it gone.
+- **When it stops**, it says why: `lc_auto: stuck at <statement>` and the expression it couldn't evaluate (usually a variable with no store fact, or `b = 0` not ruled out for `/`). A goal it gave up on after `lc_auto.heartbeats` (100000k by default) is left open with a warning instead of running for minutes.
+- **Callees**: prove the callee's spec first as a body-level theorem (`isDigit_spec`), then `lc_call hfind spec init [extras]`. The call rule is for `swpo` goals, so a caller with a call uses `swpo` and `Fn.returns_of_swpo`. Callees that own heap need `swpo_call` by hand (cookbook).
+
+What expressions become after `lc_auto` evaluates them (with `a b < 2^32` known, store facts `nu32 a`, `nu32 b`, `.int .u8 c`, `.int .u32 x`). Write the invariant and your lemmas in these shapes:
+
+| LC | becomes |
+|---|---|
+| `v "a" + v "b"`, `*` | `BitVec.ofNat 32 (a + b)`, `BitVec.ofNat 32 (a * b)` (wraps by `ofNat`) |
+| `v "a" - v "b"` | `BitVec.ofNat 32 (a - b)` if `b ≤ a` is in context, else `BitVec.ofNat 32 a - BitVec.ofNat 32 b` |
+| `v "a" / v "b"`, `%` | `BitVec.ofNat 32 (a / b)`, `BitVec.ofNat 32 (a % b)`; `/` needs `b ≠ 0` in context |
+| `.cast .u32 (v "c")` | `BitVec.ofNat 32 c.toNat` |
+| `.u32 0 - v "x"` | `-x` |
+| `v "x" >>> .u32 1`, `&&&` | `x >>> 1`, `x &&& 1#32` (bit operations stay `BitVec`) |
+| `v "a" <. v "b"`, `==.`, `!=.` | `decide (a < b)`, `decide (a = b)`, `!decide (a = b)` |
+| `p &&. q`, `p \|\|. q`, `!. p` | `(p && q)`, `(p \|\| q)`, `!p` on those booleans; in a branch, the hypothesis is the `Prop` (`a < b ∧ b ≠ 0`) |
 
 ## Pitfalls
 
