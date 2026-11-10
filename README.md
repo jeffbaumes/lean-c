@@ -55,4 +55,5 @@ nice -n 19 lake exe lc ringtest 200 1
 - `generated/lc_examples.{h,c}`: the C printed for every example.
 - `docs/`: topic guides (above), plus the original [landscape survey](docs/landscape.md), [design decisions](docs/design.md) and [learning assignments](docs/assignments.md).
 - `TODO.md`: follow-on work, prioritised.
+- `CLAUDE.md` and `.claude/skills/lc-program/`: instructions for Claude, and the workflow skill for writing a verified LC function (also a good human quick-start).
 - `exercises/`: `core/` (with `sorry`s to fill in) and `solutions/`, named by topic. Run with `lake env lean exercises/core/Semantics.lean`.
