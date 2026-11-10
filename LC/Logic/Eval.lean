@@ -89,4 +89,36 @@ theorem Expr.eval_binop (σ : Store) (op : BinOp) (a b : Expr)
       if t.signed then t.ofInt? z else some (.int t (BitVec.ofInt t.bits z)) := by
   simp [evalCast, Val.toInt?]
 
+/-! The short-circuit operators `&&.` and `||.`, in a form `simp` can compute once the operands
+are known `bool`s (`Val.bool?` extracts the boolean). They come out as `some (.bool (x && y))`
+and `some (.bool (x || y))`. -/
+
+def Val.bool? : Val → Option Bool
+  | .bool b => some b
+  | _ => none
+
+@[simp] theorem Val.bool?_bool (b : Bool) : (Val.bool b).bool? = some b := rfl
+
+@[simp] theorem Expr.eval_lor (σ : Store) (a b : Expr) :
+    (Expr.binop .lor a b).eval σ = (a.eval σ).bind fun x => x.bool?.bind fun s =>
+      if s then some (.bool true) else ((b.eval σ).bind Val.bool?).map Val.bool := by
+  simp only [Expr.eval]
+  rcases Expr.eval σ a with _ | (_ | ⟨_ | _⟩ | _ | _) <;>
+    (try rfl) <;> rcases Expr.eval σ b with _ | (_ | _ | _ | _) <;> rfl
+
+@[simp] theorem Expr.eval_land (σ : Store) (a b : Expr) :
+    (Expr.binop .land a b).eval σ = (a.eval σ).bind fun x => x.bool?.bind fun s =>
+      if s then ((b.eval σ).bind Val.bool?).map Val.bool else some (.bool false) := by
+  simp only [Expr.eval]
+  rcases Expr.eval σ a with _ | (_ | ⟨_ | _⟩ | _ | _) <;>
+    (try rfl) <;> rcases Expr.eval σ b with _ | (_ | _ | _ | _) <;> rfl
+
+@[simp] theorem ite_some_bool_or (s r : Bool) :
+    (if s = true then some (Val.bool true) else some (Val.bool r)) = some (.bool (s || r)) := by
+  cases s <;> rfl
+
+@[simp] theorem ite_some_bool_and (s r : Bool) :
+    (if s = true then some (Val.bool r) else some (Val.bool false)) = some (.bool (s && r)) := by
+  cases s <;> rfl
+
 end LC
