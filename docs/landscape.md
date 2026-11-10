@@ -48,11 +48,13 @@
 | **LNSym** | Lean 4 | Armv8 machine-code symbolic simulation (crypto) | No | Active, pushed 2026-11-06 | [repo](https://github.com/leanprover/LNSym) |
 | **`bv_decide`** | Lean 4 core | Bit-blasting to bundled CaDiCaL with an LRAT certificate checked in Lean (trusts the compiler via `ofReduceBool`) | — | Since 4.12 (Oct 2024) | [release note](https://lean-lang.org/blog/2024-10-3-lean-4120) |
 | **Lean compiler** | Lean 4 | — (unverified) | Yes, but runtime-heavy (`lean.h`, RC objects); not "readable C" | New LCNF compiler since mid-2025; C emission moved to LCNF in v4.30 | [v4.30 notes](https://lean-lang.org/doc/reference/latest/releases/v4.30.0/) |
+| **AlphaProof Code** (DeepMind) | Lean 4 | Agent-written proofs (over six million lines of Lean) of security properties of Signal's *compiled* code, modelled on a Lean processor model; specs drafted with models, reviewed by people; auditing agents flag about 1% for human review | No (verifies existing code) | Announced 2026-11-10; artifacts to be open-sourced | [post](https://deepmind.google/blog/introducing-alphaproof-code/) |
+| **Formalizing CPython** | Lean 4 | Agents copy CPython 3.15.2's C and Python functions into Lean line by line, test each copy against real Python on 50,000+ inputs, prove a property (or its negation), then a second agent reviews. 4,071 of 26,004 functions accepted; 418 CPython bug reports | No (models existing code) | Started 2026-10-29, post 2026-11-09 | [post](https://broyojo.com/python-formalization/), [repo](https://github.com/Broyojo/python-formalization) |
 | **Axon** | Lean 4 | Toy-language → ARM64 compiler, verified core, written by Claude Code | No (asm) | Papers May–Jul 2026 | [arXiv 2605.01660](https://arxiv.org/abs/2605.01660) |
 
 ---
 
-## 2. The five most relevant projects and what to borrow
+## 2. The most relevant projects and what to borrow
 
 ### 2.1 Low\* / KaRaMeL: the architecture to copy
 - **Hybrid embedding.** Low\* is a *shallow* embedding: programs are ordinary F\* terms in an effect (`Stack`/`ST`) over a memory model (`HyperStack`). A separate *deep* step runs at extraction time: KaRaMeL takes F\*'s extracted AST (λow\*) and compiles it to C\*, then to C. The paper proves λow\* → C\* → Clight-like correct on paper; the tool itself is trusted. → **Borrow:** shallow for writing and proving, deep for emitting. In Lean the deep side is natural, because you can reflect a `def` into a syntax tree with metaprogramming or keep a deep AST with a denotation function.
@@ -76,6 +78,15 @@
 - ISO/IEC TS 6010 (2025) standardizes PNVI-ae-udi provenance. You need it as a **spec of what your emitted C may rely on**, even if your own model is block-based. Example: never round-trip pointers through integers, never compare pointers across objects. A block-based model (CompCert/Low\*) is strictly more conservative, so it's safe to emit from.
 - CN shows how to state C ownership specs ergonomically, and Fulminate shows how to turn them into runtime checks. → **Borrow:** compile your pre- and postconditions into optional runtime asserts in the emitted C for differential testing.
 - cerberus-lean is a possible *second oracle* for differential testing (ISO semantics vs Clight semantics) later on.
+
+### 2.6 AlphaProof Code and Formalizing CPython: agents verifying existing code at scale
+Both run the opposite direction to LC. They take code that already exists (Signal's compiled code; CPython's C and Python) and model it in Lean, where LC writes new code in a verified DSL and prints C. Both rely on agents to write nearly all of the Lean, with Lean as the checker. What carries over is how they decide whether agent-written work can be trusted:
+- **Specs are the weak point.** Proofs are checked by Lean, but whether a statement says anything useful isn't. CPython's early runs produced weak properties ("if it returns, the answer is ≥ 0"), and only 21% of one file's proofs held up under review. AlphaProof Code has people review every spec. → **Borrow:** a reviewer that didn't write the proof asks "could a broken version pass?" ([TODO](../TODO.md) T05), and a mutation check that makes that question mechanical (T04).
+- **Known-bug sanity checks.** AlphaProof Code put two real, previously fixed bugs back into a copy of the code and got proofs that the buggy versions were insecure. → **Borrow:** the same idea as mutants that the proof must reject (T04).
+- **Test before proving, then check proofs against the real system.** CPython tests every copy against real Python before proving anything, and runs accepted statements against Python again, because some accepted proofs were still wrong about real Python. → **Already here:** reference `#guard`s before the proof, and the difftest of the emitted C against the interpreter; T11 and T25 extend it.
+- **Untrusted provers, trusted gatekeepers.** Both treat the proving agents as untrusted and put a small trusted step at the end (Lean plus a review). → **Already here:** `lc check` (no `sorry`, standard axioms only) is that gate; T04–T06 add the spec half.
+- **List the targets up front and count.** CPython lists every function first and tracks accepted ones against the list. → **Borrow** for a larger port (T33).
+- **Depth vs. breadth.** AlphaProof Code verifies compiled code, so the compiler is out of the trusted base. LC trusts its printer and the C compiler; T12 (printer proof) and T38 (CompCert) are the steps in that direction.
 
 **Honourable mention: Aeneas + Eurydice.** Read it for its design of fixed-width integer libraries in Lean (`U32`, `I32` with `Result`-valued overflow) and for how it presents proof obligations to AI provers. Their Lean library is the most battle-tested scalar library in Lean today.
 
@@ -160,4 +171,5 @@ So the project fills a genuine, currently unfilled slot: a **Low\*-for-Lean** wh
 - Aeneas https://github.com/AeneasVerif/aeneas · Eurydice https://github.com/AeneasVerif/eurydice · Rust→Lean AI report https://arxiv.org/abs/2605.30106 · SymCrypt https://www.microsoft.com/en-us/research/blog/verifying-rust-cryptography-in-symcrypt-from-standards-to-code/
 - CSLib https://arxiv.org/abs/2602.04846 · Strata https://github.com/strata-org/Strata · LeanMLIR https://arxiv.org/abs/2407.03685 · LNSym https://github.com/leanprover/LNSym
 - bv_decide https://lean-lang.org/blog/2024-10-3-lean-4120 · Lean v4.30 notes https://lean-lang.org/doc/reference/latest/releases/v4.30.0/ · Lean releases https://github.com/leanprover/lean4/releases · Plausible https://reservoir.lean-lang.org/@leanprover-community/plausible
+- AlphaProof Code https://deepmind.google/blog/introducing-alphaproof-code/ · Formalizing CPython https://broyojo.com/python-formalization/
 - Axon https://arxiv.org/abs/2605.01660 · EasyProver https://arxiv.org/abs/2610.38174 · WybeCoder https://arxiv.org/abs/2603.29088 · LeetProof https://arxiv.org/abs/2604.16584 · VERINA https://arxiv.org/abs/2505.23135 · Emergence AI on VeriSoftBench https://www.emergence.ai/blog/wubqc15w0squyx8mot5zn7iziw6b7x · C\* https://arxiv.org/abs/2504.02246

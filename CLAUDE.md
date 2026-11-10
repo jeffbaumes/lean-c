@@ -32,4 +32,4 @@ nice -n 19 lake exe lc difftest 100 1 <fn>   # differential test of one function
 
 ## Writing style for docs and comments
 
-Docs in `docs/` are short topic guides: what it is, how to use it, results, limits. Plain sentences, tables where they help, no marketing. Module docstrings (`/-! … -/`) open every Lean file and say what the file proves and why it's interesting. When finishing a TODO item, tick it in [TODO.md](TODO.md), say where it was done, and list the follow-ups it uncovered.
+Docs in `docs/` are short topic guides: what it is, how to use it, results, limits. Plain sentences, tables where they help, no marketing. Module docstrings (`/-! … -/`) open every Lean file and say what the file proves and why it's interesting. Tasks in [TODO.md](TODO.md) have IDs (`T07`), a priority (P0–P3) and area tags; refer to them by ID in commits. When finishing one, move it to "Done" with a line on where it was done, and add the follow-ups it uncovered as new tasks with new IDs (never reuse or renumber IDs).
